@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+  <title>Wild Gift</title>
+
+  <!-- SDK, которые ждут скрипты -->
+  <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- можно оставить пустым или добавить базовые стили -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <noscript>Для работы приложения требуется JavaScript.</noscript>
+
+  <div id="appRoot">
+    <!-- Верхняя панель -->
+    <header>
+      <button id="userPill" type="button">
+        <img id="userAvatar" src="images/avatar-default.png" alt="Аватар" />
+        <span id="userName">Guest</span>
+      </button>
+
+      <div>
+        <img src="images/logo/logo.png" alt="Wild Gift" />
+      </div>
+
+      <button id="tonPill" type="button" data-open-deposit>
+        <img src="icons/ton.svg" alt="" />
+        <span id="tonAmount">0.00</span>
+        <img src="icons/plus.svg" alt="" />
+      </button>
+    </header>
+
+    <!-- История -->
+    <section>
+      <div id="historyList"></div>
+    </section>
+
+    <!-- Страница колеса (по умолчанию активна) -->
+    <main id="wheelPage" class="page page-active">
+      <canvas id="wheelCanvas" width="420" height="420"></canvas>
+      <div id="countdown"><span id="countNum">9</span></div>
+    </main>
+
+    <!-- Страницы-заглушки (чтобы не падали переходы) -->
+    <main id="casesPage" class="page"></main>
+    <main id="inventoryPage" class="page"></main>
+
+    <!-- Профиль (минимум для работы profile.js) -->
+    <main id="profilePage" class="page">
+      <img id="profileAvatar" alt="Аватар профиля" />
+      <h2 id="profileName">User</h2>
+      <p id="profileHandle">—</p>
+
+      <button id="walletPill" type="button" aria-expanded="false" aria-controls="walletDetails">
+        <img src="icons/ton.svg" alt="">
+        <span id="profileWallet">Not connected</span>
+      </button>
+
+      <div id="walletDetails" hidden>
+        <div id="walletFull">—</div>
+        <button id="walletCopy" type="button">Copy</button>
+        <button id="profileDisconnect" type="button">Disconnect</button>
+      </div>
+    </main>
+
+    <!-- Нижняя навигация -->
+    <nav class="bottom-nav">
+      <button class="nav-item active" data-target="wheelPage">Wheel</button>
+      <button class="nav-item" data-target="casesPage">Cases</button>
+      <button class="nav-item" data-target="inventoryPage">Inventory</button>
+      <button class="nav-item" data-target="profilePage">Profile</button>
+    </nav>
+
+    <!-- Лист депозита (минимум) -->
+    <div id="depositSheet" aria-hidden="true">
+      <div class="sheet__backdrop"></div>
+      <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="depTitle">
+        <button id="depClose" type="button" aria-label="Закрыть">×</button>
+        <h3 id="depTitle">Deposit</h3>
+
+        <label for="depAmount">
+          <img src="icons/ton.svg" alt="">
+          <input id="depAmount" type="text" inputmode="decimal" placeholder="0 TON" />
+        </label>
+
+        <button id="btnConnectWallet" type="button">Connect wallet</button>
+        <button id="btnDepositNow" type="button" disabled>Deposit Now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Порядок важен -->
+  <script src="app.js" defer></script>
+  <script src="wheel.js" defer></script>
+  <script src="deposit.js" defer></script>
+  <script src="profile.js" defer></script>
+</body>
+</html>
