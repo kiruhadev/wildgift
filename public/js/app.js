@@ -1,71 +1,58 @@
-// app.js — УСИЛЕННЫЙ: делегирование событий + защита от оверлеев
+// public/js/app.js
 (() => {
-  "use strict";
+  // Telegram bootstrap
+  try {
+    const tg = window.Telegram?.WebApp;
+    tg?.ready?.();
+    tg?.expand?.();
+  } catch {}
 
-  // utils
-  const $  = (s, r = document) => r.querySelector(s);
-  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-  const url = (p) => new URL(p, location.href).toString();
-  window.__wtUtil = { $, $$, url };
+  // Простые утилы
+  function crc16Xmodem(bytes){
+    let crc=0xffff; for (const b of bytes){ crc^=(b<<8); for(let i=0;i<8;i++){ crc=(crc&0x8000)?((crc<<1)^0x1021):(crc<<1); crc&=0xffff; } } return crc;
+  }
+  function rawToFriendly(raw,{bounceable=true,testOnly=false}={}) {
+    const m = raw?.match?.(/^(-?\d+):([a-fA-F0-9]{64})$/);
+    if(!m) return raw||"";
+    const wc = parseInt(m[1],10);
+    const hash = Uint8Array.from(m[2].match(/.{2}/g).map(h=>parseInt(h,16)));
+    const tag = (bounceable?0x11:0x51) | (testOnly?0x80:0);
+    const body=new Uint8Array(34); body[0]=tag; body[1]=(wc&0xff); body.set(hash,2);
+    const crc=crc16Xmodem(body); const out=new Uint8Array(36);
+    out.set(body,0); out[34]=(crc>>8)&0xff; out[35]=crc&0xff;
+    let s=btoa(String.fromCharCode(...out));
+    return s.replace(/\+/g,"-").replace(/\//g,"_");
+  }
+  const ensureFriendly = (addr,opts) => !addr ? "" : (/^[UE]Q/.test(addr) ? addr : rawToFriendly(addr,opts));
+  const shortAddr = (addr) => addr ? `${addr.slice(0,4)}…${addr.slice(-4)}` : "Not connected";
 
-  // показать страницу
-  function showPage(id){
-    $$(".page").forEach(p => p.classList.remove("page-active"));
-    $("#"+id)?.classList.add("page-active");
-    $$(".bottom-nav .nav-item").forEach(b => b.classList.toggle("active", b.dataset.target === id));
+  // Глобальчик с утилитами и простым “event bus”
+  window.WT = window.WT || {};
+  WT.utils = { crc16Xmodem, rawToFriendly, ensureFriendly, shortAddr };
+  WT.bus   = new EventTarget();
+
+  // Навигация между страницами
+  function activatePage(id){
+    document.querySelectorAll(".page").forEach(p=>p.classList.remove("page-active"));
+    const pg = document.getElementById(id);
+    if(pg) pg.classList.add("page-active");
+
+    document.querySelectorAll(".bottom-nav .nav-item").forEach(i=>i.classList.remove("active"));
+    document.querySelector(`.bottom-nav .nav-item[data-target="${id}"]`)?.classList.add("active");
+
+    WT.bus.dispatchEvent(new CustomEvent("page:change", { detail:{ id } }));
   }
 
-  // Делегируем клики на весь документ (и touchstart)
-  function onTap(e){
-    const target = e.target.closest?.(".bottom-nav .nav-item, #userPill, [data-open-deposit], #depClose, .sheet__backdrop");
-    if (!target) return;
+  document.querySelectorAll(".bottom-nav .nav-item").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const target = btn.getAttribute("data-target");
+      if(target) activatePage(target);
+    });
+  });
 
-    // если поверх открыт шит, пропускаем только его кнопки
-    const sheetOpen = $("#depositSheet")?.classList.contains("sheet--open");
-    if (sheetOpen && !target.closest("#depositSheet")) {
-      e.preventDefault(); e.stopPropagation(); return;
-    }
-
-    if (target.matches(".bottom-nav .nav-item")){
-      const id = target.dataset.target;
-      if (id) { e.preventDefault(); showPage(id); }
-    }
-    else if (target.matches("#userPill")){
-      e.preventDefault(); showPage("profilePage");
-    }
-    else if (target.matches("[data-open-deposit]")){
-      e.preventDefault();
-      $("#depositSheet")?.classList.add("sheet--open");
-      $("#depositSheet")?.setAttribute("aria-hidden","false");
-    }
-    else if (target.matches("#depClose, .sheet__backdrop")){
-      e.preventDefault();
-      $("#depositSheet")?.classList.remove("sheet--open");
-      $("#depositSheet")?.setAttribute("aria-hidden","true");
-    }
+  // Если при старте нет активной — активируем первую
+  if(!document.querySelector(".page.page-active")){
+    const first = document.querySelector(".page");
+    if(first) activatePage(first.id);
   }
-  document.addEventListener("click", onTap, true);
-  document.addEventListener("touchstart", onTap, { passive: false, capture: true });
-
-  // История — наполняем безопасно
-  const historyList = $("#historyList");
-  if (historyList) {
-    const names = ["1x_small","3x_small","7x_small","11x_small","loot_small","wild_small","5050_small"];
-    historyList.innerHTML = names.map(n => (
-      `<button type="button" class="history-item">
-         <img class="history-icon" src="${url(`images/history/${n}.png`)}" alt="">
-       </button>`
-    )).join("");
-  }
-
-  // «пульс» для таймера (wheel.js вызывает)
-  window.__wtPulse = (id = "countdown") => {
-    const el = $("#"+id);
-    if (!el) return;
-    el.classList.add("pulse");
-    setTimeout(() => el.classList.remove("pulse"), 250);
-  };
-
-  // Пинг для отладки
-  console.log("✅ app.js ready");
 })();
