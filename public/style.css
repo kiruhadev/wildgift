@@ -591,42 +591,42 @@
               font-size: 10px;
               letter-spacing: .2px;
             }
-          /* базовое состояние */
+            /* Ð±Ð°Ð·Ð¾Ð²Ð¾Ðµ ÑÐ¾ÑÑ‚Ð¾ÑÐ½Ð¸Ðµ */
           .bottom-nav .nav-item {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: transparent;
-            border: none;
-            border-radius: 0;
+            background: transparent;     /* ÑƒÐ±Ð¸Ñ€Ð°ÐµÐ¼ Ñ„Ð¾Ð½ */
+            border: none;                /* ÑƒÐ±Ð¸Ñ€Ð°ÐµÐ¼ Ñ€Ð°Ð¼ÐºÑƒ */
+            border-radius: 0;            /* ÑƒÐ±Ð¸Ñ€Ð°ÐµÐ¼ Ð¾ÐºÑ€ÑƒÐ³Ð»ÐµÐ½Ð¸Ñ */
             padding: 6px 4px;
             flex: 1;
-            color: #999;                 /* серый текст */
+            color: #999;                 /* ÑÐµÑ€Ñ‹Ð¹ Ñ‚ÐµÐºÑÑ‚ */
             font-size: 12px;
             transition: color 0.2s ease;
           }
 
-          /* иконки внутри - СЕРЫЕ по умолчанию */
+          /* Ð¸ÐºÐ¾Ð½ÐºÐ¸ Ð²Ð½ÑƒÑ‚Ñ€Ð¸ */
           .bottom-nav .nav-item .nav-icon {
             width: 22px;
             height: 22px;
             margin-bottom: 4px;
-            /* фильтр для перекраски SVG в серый */
-            filter: brightness(0) saturate(100%) invert(60%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(90%) contrast(90%);
-            transition: filter 0.2s ease;
+            filter: none;                 /* ÑƒÐ±Ð¸Ñ€Ð°ÐµÐ¼ Ñ„Ð¸Ð»ÑŒÑ‚Ñ€Ñ‹ */
+            transition: filter 0.2s ease, fill 0.2s ease;
           }
 
-          /* активное состояние — ПОЛНАЯ ПЕРЕКРАСКА в голубой */
+          /* Ð°ÐºÑ‚Ð¸Ð²Ð½Ð¾Ðµ ÑÐ¾ÑÑ‚Ð¾ÑÐ½Ð¸Ðµ â€” Ñ‚Ð¾Ð»ÑŒÐºÐ¾ Ñ†Ð²ÐµÑ‚ */
           .bottom-nav .nav-item.active {
-            background: transparent;
-            box-shadow: none;
-            color: #00aaff;              /* голубой текст */
+            background: transparent;     /* Ð½Ðµ Ð¿Ð¾Ð´ÑÐ²ÐµÑ‡Ð¸Ð²Ð°ÐµÐ¼ Ñ„Ð¾Ð½ */
+            box-shadow: none;            /* ÑƒÐ±Ð¸Ñ€Ð°ÐµÐ¼ Ñ‚ÐµÐ½ÑŒ */
+            color: #00aaff;              /* Ð³Ð¾Ð»ÑƒÐ±Ð¾Ð¹ Ñ‚ÐµÐºÑÑ‚ */
           }
 
           .bottom-nav .nav-item.active .nav-icon {
-            /* фильтр для полной перекраски SVG в голубой (#00aaff) */
-            filter: brightness(0) saturate(100%) invert(56%) sepia(97%) saturate(3071%) hue-rotate(181deg) brightness(101%) contrast(106%);
+            filter: drop-shadow(0 0 3px rgba(0,170,255,0.6));
+            /* ÐµÑÐ»Ð¸ svg â€” Ð¼Ð¾Ð¶Ð½Ð¾ Ð·Ð°Ð¼ÐµÐ½Ð¸Ñ‚ÑŒ Ñ†Ð²ÐµÑ‚ Ð¿Ñ€ÑÐ¼Ð¾ */
+            fill: #00aaff;
           }
 
 
