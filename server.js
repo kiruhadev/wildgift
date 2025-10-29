@@ -90,5 +90,5 @@ app.get("*", (_req, res) => {
 });
 
 // -------- start --------
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 7700
 app.listen(PORT, () => console.log(`✅ Wild Time server running on ${PORT}`));
