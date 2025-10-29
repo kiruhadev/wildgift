@@ -54,7 +54,6 @@
 
   function openSheet(){ 
     sheet?.classList.add("sheet--open"); 
-    // Добавим haptic feedback
     if (tg?.HapticFeedback) {
       tg.HapticFeedback.impactOccurred('light');
     }
@@ -112,7 +111,6 @@
       sheet?.classList.add("sheet--below");
       document.documentElement.classList.add("tc-modal-open");
       
-      // Добавим haptic feedback
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.impactOccurred('medium');
       }
@@ -121,7 +119,6 @@
       console.log('[deposit] Wallet modal opened');
     } catch (e) {
       console.warn("[deposit] openModal error:", e);
-      // Показываем пользователю ошибку
       if (tg?.showAlert) {
         tg.showAlert('Failed to open wallet connection. Please try again.');
       } else {
@@ -162,11 +159,30 @@
     }
   }
 
-  // ====== Deposit click ======
-  btnDeposit?.addEventListener("click", async ()=>{
+  // ====== ВАЖНО: Проверяем текущую валюту перед обработкой ======
+  function getCurrentCurrency() {
+    return window.WildTimeCurrency?.current || 'ton';
+  }
+
+  // ====== Deposit click - ТОЛЬКО для TON ======
+  btnDeposit?.addEventListener("click", async (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const currentCurrency = getCurrentCurrency();
+    
+    console.log('[deposit] Deposit button clicked. Currency:', currentCurrency);
+    
+    // КРИТИЧНО: Если Stars - НЕ обрабатываем здесь!
+    if (currentCurrency === 'stars') {
+      console.log('[deposit] Stars mode - skipping TON logic, will be handled by switch.js');
+      return; // Выходим, пусть switch.js обработает
+    }
+    
+    // Дальше только логика TON
     const val = normalize(amountInput?.value);
     
-    console.log('[deposit] Deposit button clicked. Amount:', val, 'Connected:', !!tc.account);
+    console.log('[deposit] TON deposit. Amount:', val, 'Connected:', !!tc.account);
     
     if (!tc.account) {
       console.log('[deposit] Wallet not connected, opening modal...');
@@ -204,13 +220,12 @@
       }]
     };
 
-    console.log('[deposit] Sending transaction:', tx);
+    console.log('[deposit] Sending TON transaction:', tx);
 
     const old = btnDeposit.textContent;
     btnDeposit.disabled = true;
     btnDeposit.textContent = "Opening wallet…";
     
-    // Haptic feedback
     if (tg?.HapticFeedback) {
       tg.HapticFeedback.impactOccurred('medium');
     }
@@ -221,10 +236,8 @@
       
       btnDeposit.textContent = "Processing…";
 
-      // Отправляем уведомление в бота
       await notifyBot(val, result?.boc || null);
 
-      // Показываем успех пользователю
       if (tg?.showPopup) {
         tg.showPopup({
           title: '✅ Deposit Sent',
@@ -235,12 +248,10 @@
         tg.showAlert(`Deposit of ${val} TON is being processed!`);
       }
 
-      // Haptic success
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.notificationOccurred('success');
       }
 
-      // Обновляем баланс (с задержкой для имитации подтверждения)
       setTimeout(()=>{
         window.dispatchEvent(new CustomEvent('balance:update', {
           detail: { ton: val }
@@ -257,7 +268,6 @@
     } catch (e) {
       console.error("[deposit] sendTransaction error:", e);
       
-      // Показываем ошибку пользователю
       const errorMsg = e.message || 'Transaction failed. Please try again.';
       if (tg?.showAlert) {
         tg.showAlert(errorMsg);
@@ -265,7 +275,6 @@
         alert(errorMsg);
       }
       
-      // Haptic error
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.notificationOccurred('error');
       }
@@ -277,20 +286,40 @@
 
   // ====== UI состояния ======
   function renderUI(){
+    const currentCurrency = getCurrentCurrency();
     const connected = !!tc.account;
-    console.log('[deposit] Rendering UI. Connected:', connected);
     
-    // показываем или скрываем Connect
-    if (btnConnect) {
-      btnConnect.style.display = connected ? "none" : "";
-    }
+    console.log('[deposit] Rendering UI. Currency:', currentCurrency, 'Connected:', connected);
     
-    // доступность Deposit
-    const val = normalize(amountInput?.value);
-    if (btnDeposit) {
-      btnDeposit.disabled = !(connected && val >= MIN_DEPOSIT);
+    // Для TON показываем/скрываем Connect
+    if (currentCurrency === 'ton') {
+      if (btnConnect) {
+        btnConnect.style.display = connected ? "none" : "";
+      }
+      
+      const val = normalize(amountInput?.value);
+      if (btnDeposit) {
+        btnDeposit.disabled = !(connected && val >= MIN_DEPOSIT);
+      }
+    } else {
+      // Для Stars кнопка Connect не нужна
+      if (btnConnect) {
+        btnConnect.style.display = "none";
+      }
+      
+      // Для Stars проверяем только сумму
+      const val = parseInt(amountInput?.value) || 0;
+      if (btnDeposit) {
+        btnDeposit.disabled = val < 50;
+      }
     }
   }
+
+  // Слушаем смену валюты
+  window.addEventListener('currency:changed', () => {
+    console.log('[deposit] Currency changed, re-rendering UI');
+    renderUI();
+  });
 
   // стартовый рендер
   renderUI();

@@ -1,6 +1,6 @@
 /**
  * switch.js - Currency Switch System (TON / Telegram Stars)
- * Управление переключением валют и интеграция с Telegram Stars API
+ * ИСПРАВЛЕННАЯ ВЕРСИЯ - правильная обработка покупки Stars
  */
 
 (function() {
@@ -20,16 +20,9 @@
     function init() {
       console.log('[Switch] Initializing currency system...');
       
-      // Загружаем сохраненную валюту
       loadCurrency();
-      
-      // Инициализируем UI
       initUI();
-      
-      // Подключаем обработчики
       attachEventListeners();
-      
-      // Обновляем баланс
       updateBalanceDisplay();
       
       console.log('[Switch] Currency system ready. Current:', currentCurrency);
@@ -50,10 +43,9 @@
   
     // ================== EVENT LISTENERS ==================
     function attachEventListeners() {
-      // Переключатели валюты в профиле - УЛУЧШЕННАЯ КЛИКАБЕЛЬНОСТЬ
+      // Переключатели валюты в профиле
       const currencyBtns = document.querySelectorAll('.curr-btn');
       currencyBtns.forEach(btn => {
-        // Добавляем обработчик на всю кнопку
         btn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -62,7 +54,6 @@
           switchCurrency(currency);
         });
         
-        // Делаем кнопку более отзывчивой
         btn.style.cursor = 'pointer';
         btn.style.userSelect = 'none';
         btn.style.webkitTapHighlightColor = 'transparent';
@@ -74,12 +65,42 @@
         tonPill.addEventListener('click', openDepositSheet);
       }
   
+      // КРИТИЧНО: Обработчик кнопки Deposit/Buy Stars
+      const btnDeposit = document.getElementById('btnDepositNow');
+      if (btnDeposit) {
+        // Добавляем обработчик с capture=true, чтобы он сработал ПЕРВЫМ
+        btnDeposit.addEventListener('click', handleDepositClick, true);
+      }
+  
       // Слушаем события баланса от других модулей
       window.addEventListener('balance:update', (e) => {
         if (e.detail) {
           updateBalance(e.detail);
         }
       });
+    }
+  
+    // ================== DEPOSIT BUTTON HANDLER ==================
+    function handleDepositClick(e) {
+      console.log('[Switch] Deposit button clicked. Current currency:', currentCurrency);
+      
+      if (currentCurrency === 'stars') {
+        // Для Stars - обрабатываем сами и ОСТАНАВЛИВАЕМ propagation
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        const input = document.getElementById('depAmount');
+        const amount = parseInt(input?.value) || 0;
+        
+        console.log('[Switch] Handling Stars purchase, amount:', amount);
+        buyStarsViaTelegram(amount);
+        
+        return false;
+      }
+      
+      // Для TON - пропускаем дальше в deposit.js
+      console.log('[Switch] TON mode - letting deposit.js handle it');
     }
   
     // ================== CURRENCY SWITCHING ==================
@@ -92,13 +113,8 @@
       console.log(`[Switch] Switching from ${currentCurrency} to ${currency}`);
       currentCurrency = currency;
       
-      // Сохраняем выбор
       saveCurrency();
-      
-      // Обновляем UI
       updateCurrencyUI();
-      
-      // Обновляем дисплей баланса С АНИМАЦИЕЙ
       updateBalanceDisplay(true);
       
       // Уведомляем другие модули
@@ -106,7 +122,6 @@
         detail: { currency }
       }));
       
-      // Haptic feedback (если доступен)
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.selectionChanged();
       }
@@ -147,7 +162,7 @@
         userBalance.stars = parseInt(balances.stars) || 0;
       }
       
-      updateBalanceDisplay(true); // С АНИМАЦИЕЙ
+      updateBalanceDisplay(true);
     }
   
     function updateBalanceDisplay(animate = false) {
@@ -165,14 +180,9 @@
       }
     }
   
-    /**
-     * Плавная анимация изменения баланса с эффектом "желе"
-     */
     function animateBalanceChange(element, targetValue) {
-      // Добавляем класс для jelly-анимации
       element.classList.add('balance-jelly');
       
-      // Счетчик для плавного изменения числа
       const currentText = element.textContent;
       const currentNum = parseFloat(currentText.replace(/[^\d.]/g, '')) || 0;
       const targetNum = parseFloat(targetValue.replace(/[^\d.]/g, '')) || 0;
@@ -191,7 +201,6 @@
           element.textContent = targetValue;
           clearInterval(timer);
           
-          // Убираем класс после окончания анимации
           setTimeout(() => {
             element.classList.remove('balance-jelly');
           }, 600);
@@ -205,7 +214,6 @@
     }
   
     function formatStars(amount) {
-      // Форматируем звезды: 1000 -> 1K, 1000000 -> 1M
       if (amount >= 1000000) {
         return (amount / 1000000).toFixed(1) + 'M';
       }
@@ -225,7 +233,6 @@
       updateDepositSheetUI();
       sheet.classList.add('sheet--open');
       
-      // Добавляем эффект вспышки на pill
       const tonPill = document.querySelector('.pill--ton');
       if (tonPill) {
         tonPill.classList.add('balance-flash');
@@ -251,38 +258,37 @@
 
       if (currentCurrency === 'ton') {
         if (title) title.textContent = 'Deposit TON';
-        if (subtitle) subtitle.textContent = 'Available in TON only';
+        if (subtitle) subtitle.textContent = 'Connect your TON wallet';
         if (minDeposit) minDeposit.innerHTML = 'Minimum deposit <b>0.5 TON</b>';
         if (inputIcon) inputIcon.src = '/icons/ton.svg';
         if (input) input.placeholder = '0 TON';
         if (btnConnect) {
-          btnConnect.style.display = ''; // Показываем кнопку
+          btnConnect.style.display = '';
           btnConnect.innerHTML = '<span class="btn__icons"><img src="/icons/telegram.svg" alt=""></span> Connect wallet';
         }
-        if (btnDeposit) btnDeposit.textContent = 'Deposit Now';
-        if (depActions) depActions.classList.remove('single'); // Две кнопки
+        if (btnDeposit) {
+          btnDeposit.textContent = 'Deposit Now';
+        }
+        if (depActions) depActions.classList.remove('single');
       } else {
-        if (title) title.textContent = 'Buy Stars';
-        if (subtitle) subtitle.textContent = 'Pay with Telegram';
+        // STARS MODE
+        if (title) title.textContent = 'Buy Telegram Stars';
+        if (subtitle) subtitle.textContent = 'Purchase via Telegram';
         if (minDeposit) minDeposit.innerHTML = 'Minimum purchase <b>50 Stars</b>';
         if (inputIcon) inputIcon.src = '/icons/stars.svg';
         if (input) input.placeholder = '0 Stars';
         if (btnConnect) {
-          btnConnect.style.display = 'none'; // Для Stars не нужен кошелек
+          btnConnect.style.display = 'none';
         }
         if (btnDeposit) {
           btnDeposit.textContent = 'Buy Stars';
-          btnDeposit.disabled = false; // Всегда активна для Stars
+          btnDeposit.disabled = false;
         }
-        if (depActions) depActions.classList.add('single'); // Одна кнопка по центру
+        if (depActions) depActions.classList.add('single');
       }
     }
   
     // ================== TELEGRAM STARS PAYMENT ==================
-    /**
-     * Покупка Telegram Stars через встроенную систему оплаты
-     * @param {number} amount - Количество звезд
-     */
     async function buyStarsViaTelegram(amount) {
       console.log('[Switch] buyStarsViaTelegram called with amount:', amount);
       
@@ -332,26 +338,22 @@
         }
 
         // Открываем инвойс в Telegram
-        console.log('[Switch] Opening invoice:', data.invoiceLink);
+        console.log('[Switch] Opening Telegram invoice:', data.invoiceLink);
         
         if (tg.openInvoice) {
-          // Используем новый API если доступен
+          // Используем новый API
           tg.openInvoice(data.invoiceLink, (status) => {
             console.log('[Switch] Invoice status:', status);
             
             if (status === 'paid') {
-              // Успешная оплата
               console.log('[Switch] Payment successful!');
               
-              // Обновляем баланс
               userBalance.stars += starsAmount;
               updateBalanceDisplay(true);
               
-              // Закрываем sheet
               const sheet = document.getElementById('depositSheet');
               sheet?.classList.remove('sheet--open');
               
-              // Показываем уведомление
               if (tg.showPopup) {
                 tg.showPopup({
                   title: '⭐ Stars Purchased!',
@@ -360,12 +362,10 @@
                 });
               }
               
-              // Haptic feedback
               if (tg.HapticFeedback) {
                 tg.HapticFeedback.notificationOccurred('success');
               }
               
-              // Отправляем событие
               window.dispatchEvent(new CustomEvent('stars:purchased', {
                 detail: { amount: starsAmount }
               }));
@@ -387,6 +387,7 @@
           });
         } else {
           // Fallback для старых версий
+          console.log('[Switch] Using fallback openLink method');
           tg.openLink(data.invoiceLink);
         }
 
@@ -428,65 +429,28 @@
       }
     }
 
-    // ================== BET CONVERSION ==================
-    /**
-     * Конвертирует сумму ставки в текущую валюту
-     */
-    function convertBetAmount(tonAmount) {
-      if (currentCurrency === 'ton') {
-        return tonAmount;
-      }
-      // 1 TON ≈ 100 Stars (примерный курс, настрой под свой)
-      return Math.round(tonAmount * 100);
-    }
-
-    /**
-     * Проверяет достаточность баланса для ставки
-     */
-    function hasSufficientBalance(amount) {
-      if (currentCurrency === 'ton') {
-        return userBalance.ton >= amount;
-      }
-      return userBalance.stars >= amount;
-    }
-
     // ================== PUBLIC API ==================
     window.WildTimeCurrency = {
-      // State
       get current() { return currentCurrency; },
       get balance() { return { ...userBalance }; },
-      
-      // Currency management
       switchTo: switchCurrency,
-      
-      // Balance management
       updateBalance: updateBalance,
       setBalance: (currency, amount) => {
         userBalance[currency] = currency === 'ton' ? parseFloat(amount) : parseInt(amount);
         updateBalanceDisplay(true);
       },
-      
-      // Payments
       buyStars: buyStarsViaTelegram,
-      
-      // Bet helpers
-      convertBetAmount: convertBetAmount,
-      hasSufficientBalance: hasSufficientBalance,
-      
-      // Utils
       formatStars: formatStars
     };
   
-    // ================== INJECT JELLY STYLES ==================
-    const jellyStyles = `
-      /* 🍮 Jelly Balance Animation */
+    // ================== INJECT STYLES ==================
+    const styles = `
       #tonAmount {
         display: inline-block;
         transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
         will-change: transform;
       }
   
-      /* Активная анимация желе */
       #tonAmount.balance-jelly {
         animation: jellyBounce 0.8s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
         transform-origin: center;
@@ -504,14 +468,14 @@
         80%, 100% { transform: scale3d(1, 1, 1); }
       }
 
-      /* УЛУЧШЕННАЯ КЛИКАБЕЛЬНОСТЬ ПЕРЕКЛЮЧАТЕЛЯ */
       .currency-switch {
         display: flex;
         gap: 8px;
         padding: 4px;
-        background: rgba(255,255,255,.04);
-        border-radius: 12px;
-        margin: 16px 0;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        margin-bottom: 6px;
       }
 
       .curr-btn {
@@ -520,118 +484,86 @@
         align-items: center;
         justify-content: center;
         gap: 8px;
-        padding: 12px 16px;
-        border-radius: 10px;
+        padding: 12px 20px;
+        border-radius: 12px;
         background: transparent;
-        border: 1px solid transparent;
-        color: #8da1b8;
-        font-weight: 600;
+        border: none;
+        color: var(--muted);
+        font-weight: 700;
         font-size: 14px;
-        transition: all 0.2s ease;
+        transition: all .2s ease;
         cursor: pointer;
         user-select: none;
         -webkit-tap-highlight-color: transparent;
-        /* УВЕЛИЧЕННАЯ ОБЛАСТЬ КЛИКА */
+        min-height: 44px;
         position: relative;
       }
 
-      /* Увеличиваем кликабельную область */
       .curr-btn::before {
         content: '';
         position: absolute;
-        inset: -8px; /* Расширяем на 8px во все стороны */
-        border-radius: 12px;
+        inset: -6px;
+        border-radius: 14px;
+      }
+
+      .curr-btn:hover {
+        background: rgba(255,255,255,.04);
+        color: var(--text);
       }
 
       .curr-btn:active {
-        transform: scale(0.95);
+        transform: scale(.96);
       }
 
       .curr-btn--active {
-        background: rgba(0,166,255,.12);
-        border-color: rgba(0,166,255,.3);
-        color: #00a6ff;
-        box-shadow: 0 0 0 1px rgba(0,166,255,.15) inset;
+        color: var(--accent);
+        background: rgba(0,166,255,.08);
       }
 
       .curr-icon {
         width: 20px;
         height: 20px;
-        pointer-events: none; /* Иконка не мешает клику */
+        opacity: .7;
+        transition: opacity .3s ease, transform .2s ease;
+        pointer-events: none;
       }
 
-      /* Hover эффект только для неактивной кнопки */
-      .curr-btn:not(.curr-btn--active):hover {
-        background: rgba(255,255,255,.06);
-        border-color: rgba(255,255,255,.1);
-        color: #b8c5d6;
+      .curr-btn:hover .curr-icon {
+        opacity: .9;
+        transform: scale(1.05);
       }
-  
-      /* Hover эффект для pill */
-      .pill--ton {
-        transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-        cursor: pointer;
+
+      .curr-btn--active .curr-icon {
+        opacity: 1;
       }
-  
+
+      .curr-btn span {
+        pointer-events: none;
+        white-space: nowrap;
+      }
+
       .pill--ton:hover {
         transform: translateY(-2px) scale(1.02);
         box-shadow: 
           0 0 0 1px rgba(0,166,255,.35) inset,
-          0 8px 24px rgba(0,166,255,.25),
-          0 0 30px rgba(0,166,255,.15);
+          0 8px 24px rgba(0,166,255,.25);
       }
-  
-      .pill--ton:active {
-        transform: translateY(0) scale(0.98);
-        transition-duration: 0.1s;
-      }
-  
-      /* Эффект свечения при изменении баланса */
+
       .pill--ton.balance-flash {
         animation: balanceFlash 0.6s ease;
       }
-  
+
       @keyframes balanceFlash {
         0%, 100% { background: var(--panel); }
         50% {
           background: rgba(0,166,255,.12);
-          box-shadow: 
-            0 0 0 2px rgba(0,166,255,.4) inset,
-            0 0 30px rgba(0,166,255,.3);
+          box-shadow: 0 0 0 2px rgba(0,166,255,.4) inset;
         }
-      }
-  
-      /* Пульсация иконки при hover */
-      .pill--ton:hover .pill-icon {
-        animation: iconPulse 1s ease infinite;
-      }
-  
-      @keyframes iconPulse {
-        0%, 100% {
-          transform: scale(1);
-          filter: brightness(1);
-        }
-        50% {
-          transform: scale(1.1);
-          filter: brightness(1.2) drop-shadow(0 0 8px rgba(0,166,255,.5));
-        }
-      }
-  
-      /* Плюсик тоже анимируется */
-      .pill--ton:hover .pill-plus-icon {
-        animation: plusRotate 0.6s ease;
-      }
-  
-      @keyframes plusRotate {
-        0% { transform: rotate(0deg) scale(1); }
-        50% { transform: rotate(90deg) scale(1.2); }
-        100% { transform: rotate(180deg) scale(1); }
       }
     `;
   
-    // Внедряем стили
     const styleSheet = document.createElement('style');
-    styleSheet.textContent = jellyStyles;
+    styleSheet.textContent = styles;
     document.head.appendChild(styleSheet);
   
     // ================== AUTO-INIT ==================
@@ -640,21 +572,5 @@
     } else {
       init();
     }
-  
-    // Обработка deposit button в sheet для Stars
-    document.addEventListener('DOMContentLoaded', () => {
-      const btnDeposit = document.getElementById('btnDepositNow');
-      if (btnDeposit) {
-        btnDeposit.addEventListener('click', () => {
-          if (currentCurrency === 'stars') {
-            const input = document.getElementById('depAmount');
-            const amount = parseInt(input?.value) || 0;
-            console.log('[Switch] Buy Stars button clicked, amount:', amount);
-            buyStarsViaTelegram(amount);
-          }
-          // Для TON обработка в deposit.js
-        });
-      }
-    });
   
   })();
