@@ -1,10 +1,9 @@
 // public/js/deposit.js
 (() => {
   // ====== КОНФИГ ======
-  // Хитро: добавляем ?v=timestamp чтобы КОШЕЛЁК точно взял свежий манифест и увидел ЛОГО
-  const MANIFEST_URL = `${location.origin}/tonconnect-manifest.json?v=${Date.now()}`;
-  const PROJECT_TON_ADDRESS = "UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J"; // UQ/EQ адрес проекта
-  const MIN_DEPOSIT = 0.5; // можно 0.1 для теста
+  const MANIFEST_URL = `${location.origin}/tonconnect-manifest.json`;
+  const PROJECT_TON_ADDRESS = "UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J";
+  const MIN_DEPOSIT = 0.5;
 
   // ====== DOM ======
   const sheet        = document.getElementById("depositSheet");
@@ -16,8 +15,9 @@
   const tonPill      = document.getElementById("tonPill");
 
   // ====== helpers ======
-  const tgUserId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || "guest";
-  const initData = window.Telegram?.WebApp?.initData || "";
+  const tg = window.Telegram?.WebApp;
+  const tgUserId = tg?.initDataUnsafe?.user?.id || "guest";
+  const initData = tg?.initData || "";
 
   function makeScopedStorage(prefix) {
     return {
@@ -26,15 +26,16 @@
       removeItem: (k) => localStorage.removeItem(`${prefix}:${k}`)
     };
   }
+
   function cleanupOldTonConnectKeys() {
     const bad = ["ton-connect-ui", "ton-connect-storage_bridge_v2"];
     bad.forEach((k)=> localStorage.removeItem(k));
-    // и старые гостевые
     for (let i=0;i<localStorage.length;i++){
       const key = localStorage.key(i);
       if (key && key.startsWith("guest:tc:")) localStorage.removeItem(key);
     }
   }
+
   function normalize(input) {
     if (!input) return NaN;
     let s = String(input).trim().replace(",", ".").replace(/[^\d.]/g, "");
@@ -43,6 +44,7 @@
     const n = parseFloat(s);
     return Number.isFinite(n) ? n : NaN;
   }
+
   function toNanoStr(amountStr) {
     const s = String(amountStr).trim().replace(",", ".");
     const [i="0", f=""] = s.split(".");
@@ -50,8 +52,17 @@
     return (BigInt(i||"0")*1_000_000_000n + BigInt(frac9)).toString();
   }
 
-  function openSheet(){ sheet?.classList.add("sheet--open"); }
-  function closeSheet(){ sheet?.classList.remove("sheet--open"); }
+  function openSheet(){ 
+    sheet?.classList.add("sheet--open"); 
+    // Добавим haptic feedback
+    if (tg?.HapticFeedback) {
+      tg.HapticFeedback.impactOccurred('light');
+    }
+  }
+  
+  function closeSheet(){ 
+    sheet?.classList.remove("sheet--open"); 
+  }
 
   tonPill?.addEventListener("click", openSheet);
   backdrop?.addEventListener("click", closeSheet);
@@ -67,34 +78,55 @@
 
   // ====== TonConnect UI ======
   cleanupOldTonConnectKeys();
+  
   if (!window.TON_CONNECT_UI) {
     console.error("[deposit] TonConnect UI not loaded");
     return;
   }
 
   const storage = makeScopedStorage(`${tgUserId}:tc`);
+  
+  console.log('[deposit] Initializing TonConnect with manifest:', MANIFEST_URL);
+  
   const tc = new TON_CONNECT_UI.TonConnectUI({
-    manifestUrl: MANIFEST_URL,            // <-- с cache-busting, чтобы логотип появился
+    manifestUrl: MANIFEST_URL,
     uiPreferences: { theme: "SYSTEM" },
     storage,
     restoreConnection: true
   });
 
-  // отдадим другим модулям (profile.js)
+  // Отдадим другим модулям (profile.js)
   window.__wtTonConnect = tc;
   window.dispatchEvent(new Event("wt-tc-ready"));
 
   // Следим за изменением статуса
-  tc.onStatusChange((_w) => renderUI());
+  tc.onStatusChange((wallet) => {
+    console.log('[deposit] TonConnect status changed:', wallet ? 'connected' : 'disconnected');
+    renderUI();
+  });
 
-  // Перехват модалки: при открытии — наш шит уводим ниже, при закрытии — возвращаем
+  // Перехват модалки
   async function openWalletModal() {
     try {
+      console.log('[deposit] Opening wallet modal...');
       sheet?.classList.add("sheet--below");
       document.documentElement.classList.add("tc-modal-open");
-      await tc.openModal(); // кошелёк рисует собственную модалку
+      
+      // Добавим haptic feedback
+      if (tg?.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred('medium');
+      }
+      
+      await tc.openModal();
+      console.log('[deposit] Wallet modal opened');
     } catch (e) {
-      console.warn("[deposit] openModal error", e);
+      console.warn("[deposit] openModal error:", e);
+      // Показываем пользователю ошибку
+      if (tg?.showAlert) {
+        tg.showAlert('Failed to open wallet connection. Please try again.');
+      } else {
+        alert('Failed to open wallet connection. Please try again.');
+      }
     } finally {
       setTimeout(()=>{
         sheet?.classList.remove("sheet--below");
@@ -105,48 +137,139 @@
 
   btnConnect?.addEventListener("click", openWalletModal);
 
+  // ====== ОТПРАВКА УВЕДОМЛЕНИЯ В БОТА ======
+  async function notifyBot(amount, txHash = null) {
+    try {
+      const response = await fetch("/api/deposit-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          amount, 
+          initData,
+          userId: tgUserId,
+          txHash,
+          timestamp: Date.now()
+        })
+      });
+      
+      if (response.ok) {
+        console.log('[deposit] Bot notification sent successfully');
+      } else {
+        console.warn('[deposit] Bot notification failed:', await response.text());
+      }
+    } catch (error) {
+      console.error('[deposit] Error sending bot notification:', error);
+    }
+  }
+
   // ====== Deposit click ======
   btnDeposit?.addEventListener("click", async ()=>{
     const val = normalize(amountInput?.value);
+    
+    console.log('[deposit] Deposit button clicked. Amount:', val, 'Connected:', !!tc.account);
+    
     if (!tc.account) {
+      console.log('[deposit] Wallet not connected, opening modal...');
       await openWalletModal();
       return;
     }
+    
     if (!(val >= MIN_DEPOSIT)) {
-      alert(`Minimum deposit is ${MIN_DEPOSIT} TON`);
+      const msg = `Minimum deposit is ${MIN_DEPOSIT} TON`;
+      console.warn('[deposit]', msg);
+      if (tg?.showAlert) {
+        tg.showAlert(msg);
+      } else {
+        alert(msg);
+      }
       return;
     }
+    
     if (!PROJECT_TON_ADDRESS || /_{5,}/.test(PROJECT_TON_ADDRESS)) {
-      alert("Project TON address is not configured");
+      const msg = "Project TON address is not configured";
+      console.error('[deposit]', msg);
+      if (tg?.showAlert) {
+        tg.showAlert(msg);
+      } else {
+        alert(msg);
+      }
       return;
     }
 
     const tx = {
       validUntil: Math.floor(Date.now()/1000) + 600,
-      messages: [{ address: PROJECT_TON_ADDRESS, amount: toNanoStr(val) }]
+      messages: [{ 
+        address: PROJECT_TON_ADDRESS, 
+        amount: toNanoStr(val)
+      }]
     };
+
+    console.log('[deposit] Sending transaction:', tx);
 
     const old = btnDeposit.textContent;
     btnDeposit.disabled = true;
     btnDeposit.textContent = "Opening wallet…";
+    
+    // Haptic feedback
+    if (tg?.HapticFeedback) {
+      tg.HapticFeedback.impactOccurred('medium');
+    }
+    
     try {
-      await tc.sendTransaction(tx);
-      btnDeposit.textContent = "Waiting…";
+      const result = await tc.sendTransaction(tx);
+      console.log('[deposit] Transaction sent:', result);
+      
+      btnDeposit.textContent = "Processing…";
 
-      // Параллельно уведомим бэкенд (он отправит push в Telegram)
-      fetch("/deposit",{
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ amount: val, initData })
-      }).catch(()=>{});
+      // Отправляем уведомление в бота
+      await notifyBot(val, result?.boc || null);
+
+      // Показываем успех пользователю
+      if (tg?.showPopup) {
+        tg.showPopup({
+          title: '✅ Deposit Sent',
+          message: `Your deposit of ${val} TON is being processed. You'll receive a notification when it's confirmed.`,
+          buttons: [{ type: 'ok' }]
+        });
+      } else if (tg?.showAlert) {
+        tg.showAlert(`Deposit of ${val} TON is being processed!`);
+      }
+
+      // Haptic success
+      if (tg?.HapticFeedback) {
+        tg.HapticFeedback.notificationOccurred('success');
+      }
+
+      // Обновляем баланс (с задержкой для имитации подтверждения)
+      setTimeout(()=>{
+        window.dispatchEvent(new CustomEvent('balance:update', {
+          detail: { ton: val }
+        }));
+      }, 2000);
 
       setTimeout(()=>{
         btnDeposit.textContent = old || "Deposit Now";
         btnDeposit.disabled = false;
+        amountInput.value = '';
         closeSheet();
-      }, 1200);
+      }, 1500);
+      
     } catch (e) {
-      console.warn("[deposit] sendTransaction error", e);
+      console.error("[deposit] sendTransaction error:", e);
+      
+      // Показываем ошибку пользователю
+      const errorMsg = e.message || 'Transaction failed. Please try again.';
+      if (tg?.showAlert) {
+        tg.showAlert(errorMsg);
+      } else {
+        alert(errorMsg);
+      }
+      
+      // Haptic error
+      if (tg?.HapticFeedback) {
+        tg.HapticFeedback.notificationOccurred('error');
+      }
+      
       btnDeposit.textContent = old || "Deposit Now";
       btnDeposit.disabled = false;
     }
@@ -155,13 +278,22 @@
   // ====== UI состояния ======
   function renderUI(){
     const connected = !!tc.account;
+    console.log('[deposit] Rendering UI. Connected:', connected);
+    
     // показываем или скрываем Connect
-    if (btnConnect) btnConnect.style.display = connected ? "none" : "";
+    if (btnConnect) {
+      btnConnect.style.display = connected ? "none" : "";
+    }
+    
     // доступность Deposit
     const val = normalize(amountInput?.value);
-    btnDeposit && (btnDeposit.disabled = !(connected && val >= MIN_DEPOSIT));
+    if (btnDeposit) {
+      btnDeposit.disabled = !(connected && val >= MIN_DEPOSIT);
+    }
   }
 
   // стартовый рендер
   renderUI();
+  
+  console.log('[deposit] Deposit module initialized');
 })();

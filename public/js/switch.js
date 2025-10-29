@@ -50,13 +50,22 @@
   
     // ================== EVENT LISTENERS ==================
     function attachEventListeners() {
-      // Переключатели валюты в профиле
+      // Переключатели валюты в профиле - УЛУЧШЕННАЯ КЛИКАБЕЛЬНОСТЬ
       const currencyBtns = document.querySelectorAll('.curr-btn');
       currencyBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
+        // Добавляем обработчик на всю кнопку
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
           const currency = btn.dataset.currency;
+          console.log('[Switch] Currency button clicked:', currency);
           switchCurrency(currency);
         });
+        
+        // Делаем кнопку более отзывчивой
+        btn.style.cursor = 'pointer';
+        btn.style.userSelect = 'none';
+        btn.style.webkitTapHighlightColor = 'transparent';
       });
   
       // Кнопка депозита в topbar
@@ -75,9 +84,12 @@
   
     // ================== CURRENCY SWITCHING ==================
     function switchCurrency(currency) {
-      if (currency === currentCurrency) return;
+      if (currency === currentCurrency) {
+        console.log('[Switch] Already on', currency);
+        return;
+      }
       
-      console.log(`[Switch] Switching to ${currency}`);
+      console.log(`[Switch] Switching from ${currentCurrency} to ${currency}`);
       currentCurrency = currency;
       
       // Сохраняем выбор
@@ -126,6 +138,8 @@
   
     // ================== BALANCE MANAGEMENT ==================
     function updateBalance(balances) {
+      console.log('[Switch] Updating balance:', balances);
+      
       if (balances.ton !== undefined) {
         userBalance.ton = parseFloat(balances.ton) || 0;
       }
@@ -139,11 +153,11 @@
     function updateBalanceDisplay(animate = false) {
       const tonAmount = document.getElementById('tonAmount');
       if (!tonAmount) return;
-  
+
       const targetValue = currentCurrency === 'ton' 
         ? userBalance.ton.toFixed(2)
         : formatStars(userBalance.stars);
-  
+
       if (animate) {
         animateBalanceChange(tonAmount, targetValue);
       } else {
@@ -205,7 +219,9 @@
     function openDepositSheet() {
       const sheet = document.getElementById('depositSheet');
       if (!sheet) return;
-  
+
+      console.log('[Switch] Opening deposit sheet for currency:', currentCurrency);
+      
       updateDepositSheetUI();
       sheet.classList.add('sheet--open');
       
@@ -232,7 +248,7 @@
       const btnConnect = document.getElementById('btnConnectWallet');
       const btnDeposit = document.getElementById('btnDepositNow');
       const depActions = document.querySelector('.dep-actions');
-  
+
       if (currentCurrency === 'ton') {
         if (title) title.textContent = 'Deposit TON';
         if (subtitle) subtitle.textContent = 'Available in TON only';
@@ -254,7 +270,10 @@
         if (btnConnect) {
           btnConnect.style.display = 'none'; // Для Stars не нужен кошелек
         }
-        if (btnDeposit) btnDeposit.textContent = 'Buy Stars';
+        if (btnDeposit) {
+          btnDeposit.textContent = 'Buy Stars';
+          btnDeposit.disabled = false; // Всегда активна для Stars
+        }
         if (depActions) depActions.classList.add('single'); // Одна кнопка по центру
       }
     }
@@ -264,311 +283,178 @@
      * Покупка Telegram Stars через встроенную систему оплаты
      * @param {number} amount - Количество звезд
      */
-    function buyStarsViaTelegram(amount) {
+    async function buyStarsViaTelegram(amount) {
+      console.log('[Switch] buyStarsViaTelegram called with amount:', amount);
+      
       if (!tg) {
-        console.error('[Switch] Telegram WebApp not available');
-        showError('Telegram WebApp не доступен');
+        console.error('[Switch] Telegram WebApp is not available');
+        alert('This feature is only available in Telegram');
         return;
       }
-  
-      // Валидация
-      if (!amount || amount < 50) {
-        showError('Минимальная покупка - 50 Stars');
+
+      const starsAmount = parseInt(amount) || 0;
+      const MIN_STARS = 50;
+
+      if (starsAmount < MIN_STARS) {
+        const msg = `Minimum purchase is ${MIN_STARS} Stars`;
+        console.warn('[Switch]', msg);
+        if (tg.showAlert) {
+          tg.showAlert(msg);
+        } else {
+          alert(msg);
+        }
         return;
       }
-  
-      console.log(`[Switch] Initiating Stars purchase: ${amount}`);
-  
-      // Создаем invoice для покупки Stars
-      const invoice = {
-        title: `${amount} Telegram Stars`,
-        description: `Purchase ${amount} Stars for Wild Time`,
-        payload: JSON.stringify({
-          type: 'stars_purchase',
-          amount: amount,
-          timestamp: Date.now()
-        }),
-        provider_token: '', // Пустой для Stars (используется внутренняя система Telegram)
-        currency: 'XTR', // Telegram Stars currency code
-        prices: [{
-          label: `${amount} Stars`,
-          amount: amount // Цена в Stars (1:1)
-        }]
-      };
-  
-      // Открываем форму оплаты Telegram
-      if (typeof tg.openInvoice === 'function') {
-        tg.openInvoice(invoice.link, (status) => {
-          handleStarsPaymentResult(status, amount);
-        });
-      } else {
-        // Альтернативный метод для старых версий
-        showStarsPaymentDialog(amount);
-      }
-    }
-  
-    /**
-     * Альтернативный метод оплаты Stars (для старых версий API)
-     */
-    function showStarsPaymentDialog(amount) {
-      // Формируем ссылку для оплаты через бот
-      const botUsername = 'YOUR_BOT_USERNAME'; // Замени на имя своего бота
-      const startParam = btoa(JSON.stringify({
-        action: 'buy_stars',
-        amount: amount,
-        userId: tg?.initDataUnsafe?.user?.id
-      }));
-  
-      const paymentUrl = `https://t.me/${botUsername}?start=${startParam}`;
-  
-      // Открываем в Telegram
-      if (tg?.openTelegramLink) {
-        tg.openTelegramLink(paymentUrl);
-      } else if (tg?.openLink) {
-        tg.openLink(paymentUrl);
-      } else {
-        window.open(paymentUrl, '_blank');
-      }
-    }
-  
-    /**
-     * Обработка результата оплаты Stars
-     */
-    function handleStarsPaymentResult(status, amount) {
-      console.log('[Switch] Payment status:', status);
-  
-      if (status === 'paid' || status === 'success') {
-        // Успешная оплата
-        onStarsPurchaseSuccess(amount);
-      } else if (status === 'cancelled') {
-        showInfo('Оплата отменена');
-      } else if (status === 'failed') {
-        showError('Ошибка оплаты. Попробуйте снова');
-      }
-    }
-  
-    /**
-     * Обработка успешной покупки Stars
-     */
-    function onStarsPurchaseSuccess(amount) {
-      console.log(`[Switch] Stars purchase successful: ${amount}`);
-  
-      // Обновляем баланс С МОЩНОЙ АНИМАЦИЕЙ
-      userBalance.stars += amount;
-      
-      // Добавляем визуальный взрыв успеха
-      triggerSuccessExplosion();
-      
-      updateBalanceDisplay(true);
-  
-      // Закрываем sheet
-      const sheet = document.getElementById('depositSheet');
-      if (sheet) {
-        sheet.classList.remove('sheet--open');
-      }
-  
-      // Показываем уведомление
-      showSuccess(`Вы получили ${amount} Stars!`);
-  
-      // МОЩНЫЙ Haptic feedback
-      if (tg?.HapticFeedback) {
-        tg.HapticFeedback.notificationOccurred('success');
-        // Двойной тапtic для большего эффекта
-        setTimeout(() => {
-          tg.HapticFeedback.impactOccurred('heavy');
-        }, 100);
-      }
-  
-      // Уведомляем другие модули
-      window.dispatchEvent(new CustomEvent('balance:update', {
-        detail: { stars: userBalance.stars }
-      }));
-  
-      // Отправляем на сервер (если есть backend)
-      sendStarsPurchaseToServer(amount);
-    }
-  
-    /**
-     * Визуальный "взрыв" успеха при пополнении
-     */
-    function triggerSuccessExplosion() {
-      const tonPill = document.querySelector('.pill--ton');
-      if (!tonPill) return;
-  
-      // Добавляем класс для супер-анимации
-      tonPill.classList.add('balance-explosion');
-      
-      setTimeout(() => {
-        tonPill.classList.remove('balance-explosion');
-      }, 1200);
-  
-      // Создаем частицы успеха вокруг pill
-      createSuccessParticles(tonPill);
-    }
-  
-    /**
-     * Создание анимированных частиц вокруг элемента
-     */
-    function createSuccessParticles(element) {
-      const rect = element.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-  
-      for (let i = 0; i < 12; i++) {
-        const particle = document.createElement('div');
-        particle.className = 'success-particle';
-        particle.style.cssText = `
-          position: fixed;
-          left: ${centerX}px;
-          top: ${centerY}px;
-          width: 8px;
-          height: 8px;
-          background: radial-gradient(circle, rgba(0,166,255,1) 0%, rgba(0,166,255,0) 70%);
-          border-radius: 50%;
-          pointer-events: none;
-          z-index: 9999;
-        `;
-        
-        document.body.appendChild(particle);
-  
-        const angle = (Math.PI * 2 * i) / 12;
-        const distance = 60 + Math.random() * 40;
-        const duration = 800 + Math.random() * 400;
-  
-        const targetX = centerX + Math.cos(angle) * distance;
-        const targetY = centerY + Math.sin(angle) * distance;
-  
-        particle.animate([
-          { 
-            transform: 'translate(0, 0) scale(0)',
-            opacity: 1 
-          },
-          { 
-            transform: `translate(${targetX - centerX}px, ${targetY - centerY}px) scale(1.5)`,
-            opacity: 1,
-            offset: 0.5
-          },
-          { 
-            transform: `translate(${targetX - centerX}px, ${targetY - centerY}px) scale(0)`,
-            opacity: 0 
-          }
-        ], {
-          duration: duration,
-          easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
-        }).onfinish = () => {
-          particle.remove();
-        };
-      }
-    }
-  
-    /**
-     * Отправка информации о покупке на сервер
-     */
-    async function sendStarsPurchaseToServer(amount) {
+
       try {
-        // Здесь должен быть твой API endpoint
-        const response = await fetch('/api/stars/purchase', {
+        console.log('[Switch] Creating invoice for', starsAmount, 'stars');
+
+        // Создаем инвойс на бэкенде
+        const response = await fetch('/api/create-stars-invoice', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userId: tg?.initDataUnsafe?.user?.id,
-            amount: amount,
-            timestamp: Date.now(),
-            initData: tg?.initData // Для верификации на сервере
+            amount: starsAmount,
+            userId: tg.initDataUnsafe?.user?.id,
+            initData: tg.initData
           })
         });
-  
+
         if (!response.ok) {
-          throw new Error('Server error');
+          throw new Error(`Server error: ${response.status}`);
         }
-  
+
         const data = await response.json();
-        console.log('[Switch] Server response:', data);
+        console.log('[Switch] Invoice created:', data);
+
+        if (!data.invoiceLink) {
+          throw new Error('No invoice link received');
+        }
+
+        // Открываем инвойс в Telegram
+        console.log('[Switch] Opening invoice:', data.invoiceLink);
+        
+        if (tg.openInvoice) {
+          // Используем новый API если доступен
+          tg.openInvoice(data.invoiceLink, (status) => {
+            console.log('[Switch] Invoice status:', status);
+            
+            if (status === 'paid') {
+              // Успешная оплата
+              console.log('[Switch] Payment successful!');
+              
+              // Обновляем баланс
+              userBalance.stars += starsAmount;
+              updateBalanceDisplay(true);
+              
+              // Закрываем sheet
+              const sheet = document.getElementById('depositSheet');
+              sheet?.classList.remove('sheet--open');
+              
+              // Показываем уведомление
+              if (tg.showPopup) {
+                tg.showPopup({
+                  title: '⭐ Stars Purchased!',
+                  message: `You received ${starsAmount} Stars`,
+                  buttons: [{ type: 'ok' }]
+                });
+              }
+              
+              // Haptic feedback
+              if (tg.HapticFeedback) {
+                tg.HapticFeedback.notificationOccurred('success');
+              }
+              
+              // Отправляем событие
+              window.dispatchEvent(new CustomEvent('stars:purchased', {
+                detail: { amount: starsAmount }
+              }));
+              
+            } else if (status === 'cancelled') {
+              console.log('[Switch] Payment cancelled');
+              if (tg.HapticFeedback) {
+                tg.HapticFeedback.notificationOccurred('warning');
+              }
+            } else if (status === 'failed') {
+              console.error('[Switch] Payment failed');
+              if (tg.showAlert) {
+                tg.showAlert('Payment failed. Please try again.');
+              }
+              if (tg.HapticFeedback) {
+                tg.HapticFeedback.notificationOccurred('error');
+              }
+            }
+          });
+        } else {
+          // Fallback для старых версий
+          tg.openLink(data.invoiceLink);
+        }
+
       } catch (error) {
-        console.error('[Switch] Failed to send purchase to server:', error);
-        // Не показываем ошибку пользователю, т.к. Stars уже зачислены локально
+        console.error('[Switch] Error buying stars:', error);
+        
+        const errorMsg = error.message || 'Failed to create payment. Please try again.';
+        if (tg.showAlert) {
+          tg.showAlert(errorMsg);
+        } else {
+          alert(errorMsg);
+        }
+        
+        if (tg.HapticFeedback) {
+          tg.HapticFeedback.notificationOccurred('error');
+        }
       }
     }
-  
-    // ================== BET CONVERSION ==================
-    /**
-     * Конвертация суммы ставки между валютами
-     * @param {number} amount - Сумма в текущей валюте
-     * @returns {number} - Сумма для транзакции
-     */
-    function convertBetAmount(amount) {
-      if (currentCurrency === 'ton') {
-        return amount; // TON как есть
-      } else {
-        // Конвертируем TON в Stars (примерно 1 TON = 100 Stars, настрой под свои нужды)
-        return Math.round(amount * 100);
-      }
-    }
-  
-    /**
-     * Проверка достаточности баланса для ставки
-     */
-    function hasSufficientBalance(amount) {
-      const convertedAmount = convertBetAmount(amount);
-      
-      if (currentCurrency === 'ton') {
-        return userBalance.ton >= amount;
-      } else {
-        return userBalance.stars >= convertedAmount;
-      }
-    }
-  
+
     // ================== STORAGE ==================
-    function saveCurrency() {
-      try {
-        localStorage.setItem('wt_currency', currentCurrency);
-      } catch (e) {
-        console.warn('[Switch] Failed to save currency:', e);
-      }
-    }
-  
     function loadCurrency() {
       try {
-        const saved = localStorage.getItem('wt_currency');
-        if (saved === 'ton' || saved === 'stars') {
+        const saved = localStorage.getItem('wt-currency');
+        if (saved && (saved === 'ton' || saved === 'stars')) {
           currentCurrency = saved;
+          console.log('[Switch] Loaded currency from storage:', currentCurrency);
         }
       } catch (e) {
         console.warn('[Switch] Failed to load currency:', e);
       }
     }
-  
-    // ================== NOTIFICATIONS ==================
-    function showSuccess(message) {
-      console.log('[Switch] Success:', message);
-      // Здесь можно добавить toast-уведомление
-      if (tg?.showAlert) {
-        tg.showAlert(message);
+
+    function saveCurrency() {
+      try {
+        localStorage.setItem('wt-currency', currentCurrency);
+        console.log('[Switch] Saved currency to storage:', currentCurrency);
+      } catch (e) {
+        console.warn('[Switch] Failed to save currency:', e);
       }
     }
-  
-    function showError(message) {
-      console.error('[Switch] Error:', message);
-      if (tg?.showAlert) {
-        tg.showAlert(message);
+
+    // ================== BET CONVERSION ==================
+    /**
+     * Конвертирует сумму ставки в текущую валюту
+     */
+    function convertBetAmount(tonAmount) {
+      if (currentCurrency === 'ton') {
+        return tonAmount;
       }
+      // 1 TON ≈ 100 Stars (примерный курс, настрой под свой)
+      return Math.round(tonAmount * 100);
     }
-  
-    function showInfo(message) {
-      console.log('[Switch] Info:', message);
-      if (tg?.showAlert) {
-        tg.showAlert(message);
+
+    /**
+     * Проверяет достаточность баланса для ставки
+     */
+    function hasSufficientBalance(amount) {
+      if (currentCurrency === 'ton') {
+        return userBalance.ton >= amount;
       }
+      return userBalance.stars >= amount;
     }
-  
+
     // ================== PUBLIC API ==================
-    window.CurrencySwitch = {
-      // Getters
-      getCurrency: () => currentCurrency,
-      getBalance: (currency) => currency ? userBalance[currency] : userBalance[currentCurrency],
-      getAllBalances: () => ({ ...userBalance }),
+    window.WildTimeCurrency = {
+      // State
+      get current() { return currentCurrency; },
+      get balance() { return { ...userBalance }; },
       
       // Currency management
       switchTo: switchCurrency,
@@ -577,7 +463,7 @@
       updateBalance: updateBalance,
       setBalance: (currency, amount) => {
         userBalance[currency] = currency === 'ton' ? parseFloat(amount) : parseInt(amount);
-        updateBalanceDisplay(true); // С АНИМАЦИЕЙ
+        updateBalanceDisplay(true);
       },
       
       // Payments
@@ -607,39 +493,81 @@
       }
   
       @keyframes jellyBounce {
-        0% {
-          transform: scale3d(1, 1, 1);
-        }
-        10% {
-          transform: scale3d(1.25, 0.75, 1);
-        }
-        20% {
-          transform: scale3d(0.85, 1.15, 1);
-        }
-        30% {
-          transform: scale3d(1.15, 0.85, 1);
-        }
-        40% {
-          transform: scale3d(0.95, 1.05, 1);
-        }
-        50% {
-          transform: scale3d(1.05, 0.95, 1);
-        }
-        60% {
-          transform: scale3d(0.98, 1.02, 1);
-        }
-        70% {
-          transform: scale3d(1.02, 0.98, 1);
-        }
-        80% {
-          transform: scale3d(1, 1, 1);
-        }
-        100% {
-          transform: scale3d(1, 1, 1);
-        }
+        0% { transform: scale3d(1, 1, 1); }
+        10% { transform: scale3d(1.25, 0.75, 1); }
+        20% { transform: scale3d(0.85, 1.15, 1); }
+        30% { transform: scale3d(1.15, 0.85, 1); }
+        40% { transform: scale3d(0.95, 1.05, 1); }
+        50% { transform: scale3d(1.05, 0.95, 1); }
+        60% { transform: scale3d(0.98, 1.02, 1); }
+        70% { transform: scale3d(1.02, 0.98, 1); }
+        80%, 100% { transform: scale3d(1, 1, 1); }
+      }
+
+      /* УЛУЧШЕННАЯ КЛИКАБЕЛЬНОСТЬ ПЕРЕКЛЮЧАТЕЛЯ */
+      .currency-switch {
+        display: flex;
+        gap: 8px;
+        padding: 4px;
+        background: rgba(255,255,255,.04);
+        border-radius: 12px;
+        margin: 16px 0;
+      }
+
+      .curr-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 16px;
+        border-radius: 10px;
+        background: transparent;
+        border: 1px solid transparent;
+        color: #8da1b8;
+        font-weight: 600;
+        font-size: 14px;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        /* УВЕЛИЧЕННАЯ ОБЛАСТЬ КЛИКА */
+        position: relative;
+      }
+
+      /* Увеличиваем кликабельную область */
+      .curr-btn::before {
+        content: '';
+        position: absolute;
+        inset: -8px; /* Расширяем на 8px во все стороны */
+        border-radius: 12px;
+      }
+
+      .curr-btn:active {
+        transform: scale(0.95);
+      }
+
+      .curr-btn--active {
+        background: rgba(0,166,255,.12);
+        border-color: rgba(0,166,255,.3);
+        color: #00a6ff;
+        box-shadow: 0 0 0 1px rgba(0,166,255,.15) inset;
+      }
+
+      .curr-icon {
+        width: 20px;
+        height: 20px;
+        pointer-events: none; /* Иконка не мешает клику */
+      }
+
+      /* Hover эффект только для неактивной кнопки */
+      .curr-btn:not(.curr-btn--active):hover {
+        background: rgba(255,255,255,.06);
+        border-color: rgba(255,255,255,.1);
+        color: #b8c5d6;
       }
   
-      /* Hover эффект для pill - притягивает внимание */
+      /* Hover эффект для pill */
       .pill--ton {
         transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
         cursor: pointer;
@@ -664,9 +592,7 @@
       }
   
       @keyframes balanceFlash {
-        0%, 100% {
-          background: var(--panel);
-        }
+        0%, 100% { background: var(--panel); }
         50% {
           background: rgba(0,166,255,.12);
           box-shadow: 
@@ -697,109 +623,9 @@
       }
   
       @keyframes plusRotate {
-        0% {
-          transform: rotate(0deg) scale(1);
-        }
-        50% {
-          transform: rotate(90deg) scale(1.2);
-        }
-        100% {
-          transform: rotate(180deg) scale(1);
-        }
-      }
-  
-      /* Магнитный эффект для всей pill */
-      .pill--ton {
-        position: relative;
-      }
-  
-      .pill--ton::before {
-        content: '';
-        position: absolute;
-        inset: -4px;
-        border-radius: 999px;
-        background: radial-gradient(circle at center, rgba(0,166,255,.15) 0%, transparent 70%);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        pointer-events: none;
-      }
-  
-      .pill--ton:hover::before {
-        opacity: 1;
-        animation: magneticPulse 1.5s ease infinite;
-      }
-  
-      @keyframes magneticPulse {
-        0%, 100% {
-          transform: scale(1);
-          opacity: 1;
-        }
-        50% {
-          transform: scale(1.1);
-          opacity: 0.6;
-        }
-      }
-  
-      /* 💥 ВЗРЫВ УСПЕХА при пополнении */
-      .pill--ton.balance-explosion {
-        animation: 
-          explosionScale 0.8s cubic-bezier(0.34, 1.56, 0.64, 1),
-          explosionGlow 1.2s ease;
-      }
-  
-      @keyframes explosionScale {
-        0% {
-          transform: scale(1);
-        }
-        25% {
-          transform: scale(1.3) rotate(3deg);
-        }
-        50% {
-          transform: scale(0.9) rotate(-3deg);
-        }
-        75% {
-          transform: scale(1.1) rotate(1deg);
-        }
-        100% {
-          transform: scale(1) rotate(0deg);
-        }
-      }
-  
-      @keyframes explosionGlow {
-        0% {
-          box-shadow: 
-            0 0 0 0 rgba(0,166,255,.7),
-            inset 0 0 0 1px rgba(255,255,255,.05);
-        }
-        50% {
-          box-shadow: 
-            0 0 0 12px rgba(0,166,255,0),
-            0 0 50px rgba(0,166,255,.6),
-            inset 0 0 20px rgba(0,166,255,.4);
-        }
-        100% {
-          box-shadow: 
-            0 0 0 0 rgba(0,166,255,0),
-            inset 0 0 0 1px rgba(255,255,255,.05);
-        }
-      }
-  
-      /* Добавляем эффект "сочности" */
-      .pill--ton {
-        backdrop-filter: blur(8px);
-      }
-  
-      .pill--ton:hover {
-        backdrop-filter: blur(12px);
-      }
-  
-      /* Частицы успеха */
-      .success-particle {
-        animation: particleFade 1s ease-out forwards;
-      }
-  
-      @keyframes particleFade {
-        to { opacity: 0; }
+        0% { transform: rotate(0deg) scale(1); }
+        50% { transform: rotate(90deg) scale(1.2); }
+        100% { transform: rotate(180deg) scale(1); }
       }
     `;
   
@@ -815,20 +641,18 @@
       init();
     }
   
-    // Обработка deposit button в sheet
+    // Обработка deposit button в sheet для Stars
     document.addEventListener('DOMContentLoaded', () => {
       const btnDeposit = document.getElementById('btnDepositNow');
       if (btnDeposit) {
         btnDeposit.addEventListener('click', () => {
-          const input = document.getElementById('depAmount');
-          const amount = parseFloat(input?.value) || 0;
-  
           if (currentCurrency === 'stars') {
+            const input = document.getElementById('depAmount');
+            const amount = parseInt(input?.value) || 0;
+            console.log('[Switch] Buy Stars button clicked, amount:', amount);
             buyStarsViaTelegram(amount);
-          } else {
-            // Для TON используется TonConnect (обрабатывается в deposit.js)
-            console.log('[Switch] TON deposit handled by deposit.js');
           }
+          // Для TON обработка в deposit.js
         });
       }
     });
