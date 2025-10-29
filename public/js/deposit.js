@@ -1,4 +1,4 @@
-// public/js/deposit.js
+// public/js/deposit.js - ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
 (() => {
   // ====== КОНФИГ ======
   const MANIFEST_URL = `${location.origin}/tonconnect-manifest.json`;
@@ -87,11 +87,19 @@
   
   console.log('[deposit] Initializing TonConnect with manifest:', MANIFEST_URL);
   
+  // КРИТИЧНО: Правильная конфигурация TonConnect для работы в Telegram
   const tc = new TON_CONNECT_UI.TonConnectUI({
     manifestUrl: MANIFEST_URL,
-    uiPreferences: { theme: "SYSTEM" },
+    buttonRootId: null, // НЕ создаём кнопку автоматически
+    uiPreferences: { 
+      theme: "SYSTEM"
+    },
     storage,
-    restoreConnection: true
+    restoreConnection: true,
+    // ВАЖНО: Настройки для Telegram WebApp
+    actionsConfiguration: {
+      twaReturnUrl: 'https://t.me' // Возврат в Telegram после подключения
+    }
   });
 
   // Отдадим другим модулям (profile.js)
@@ -101,38 +109,66 @@
   // Следим за изменением статуса
   tc.onStatusChange((wallet) => {
     console.log('[deposit] TonConnect status changed:', wallet ? 'connected' : 'disconnected');
+    if (wallet) {
+      console.log('[deposit] Wallet connected:', wallet.account.address);
+    }
     renderUI();
   });
 
-  // Перехват модалки
+  // ИСПРАВЛЕНО: Правильное открытие модалки
   async function openWalletModal() {
     try {
-      console.log('[deposit] Opening wallet modal...');
-      sheet?.classList.add("sheet--below");
-      document.documentElement.classList.add("tc-modal-open");
+      console.log('[deposit] Opening TonConnect modal...');
+      
+      // Закрываем наш sheet ПЕРЕД открытием TonConnect
+      sheet?.classList.add("sheet--hidden");
       
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.impactOccurred('medium');
       }
       
-      await tc.openModal();
-      console.log('[deposit] Wallet modal opened');
-    } catch (e) {
-      console.warn("[deposit] openModal error:", e);
-      if (tg?.showAlert) {
-        tg.showAlert('Failed to open wallet connection. Please try again.');
+      // КРИТИЧНО: Используем правильный метод
+      // openModal() работает только в браузере
+      // Для Telegram используем встроенную интеграцию
+      if (tg && tg.openLink) {
+        // В Telegram - открываем через deeplink
+        await tc.connectWallet();
       } else {
-        alert('Failed to open wallet connection. Please try again.');
+        // В браузере - обычная модалка
+        await tc.openModal();
+      }
+      
+      console.log('[deposit] Wallet connection initiated');
+      
+    } catch (e) {
+      console.error("[deposit] Connection error:", e);
+      
+      // Восстанавливаем sheet при ошибке
+      sheet?.classList.remove("sheet--hidden");
+      
+      const errorMsg = e.message || 'Failed to connect wallet. Please try again.';
+      if (tg?.showAlert) {
+        tg.showAlert(errorMsg);
+      } else {
+        alert(errorMsg);
+      }
+      
+      if (tg?.HapticFeedback) {
+        tg.HapticFeedback.notificationOccurred('error');
       }
     } finally {
+      // Возвращаем sheet через 500мс
       setTimeout(()=>{
-        sheet?.classList.remove("sheet--below");
-        document.documentElement.classList.remove("tc-modal-open");
-      }, 350);
+        sheet?.classList.remove("sheet--hidden");
+      }, 500);
     }
   }
 
-  btnConnect?.addEventListener("click", openWalletModal);
+  btnConnect?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    console.log('[deposit] Connect button clicked');
+    await openWalletModal();
+  });
 
   // ====== ОТПРАВКА УВЕДОМЛЕНИЯ В БОТА ======
   async function notifyBot(amount, txHash = null) {
@@ -175,8 +211,8 @@
     
     // КРИТИЧНО: Если Stars - НЕ обрабатываем здесь!
     if (currentCurrency === 'stars') {
-      console.log('[deposit] Stars mode - skipping TON logic, will be handled by switch.js');
-      return; // Выходим, пусть switch.js обработает
+      console.log('[deposit] Stars mode - skipping TON logic');
+      return;
     }
     
     // Дальше только логика TON
@@ -325,4 +361,17 @@
   renderUI();
   
   console.log('[deposit] Deposit module initialized');
+  
+  // ДОБАВЛЯЕМ: Инжектируем стили для скрытия sheet
+  const hideStyles = `
+    .sheet.sheet--hidden {
+      pointer-events: none !important;
+      opacity: 0 !important;
+      z-index: -1 !important;
+    }
+  `;
+  
+  const styleEl = document.createElement('style');
+  styleEl.textContent = hideStyles;
+  document.head.appendChild(styleEl);
 })();

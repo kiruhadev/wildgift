@@ -68,8 +68,12 @@
       // КРИТИЧНО: Обработчик кнопки Deposit/Buy Stars
       const btnDeposit = document.getElementById('btnDepositNow');
       if (btnDeposit) {
-        // Добавляем обработчик с capture=true, чтобы он сработал ПЕРВЫМ
-        btnDeposit.addEventListener('click', handleDepositClick, true);
+        // Удаляем все предыдущие обработчики (если есть)
+        const newBtn = btnDeposit.cloneNode(true);
+        btnDeposit.parentNode.replaceChild(newBtn, btnDeposit);
+        
+        // Добавляем наш обработчик с capture=true
+        newBtn.addEventListener('click', handleDepositClick, true);
       }
   
       // Слушаем события баланса от других модулей
@@ -248,8 +252,7 @@
   
     function updateDepositSheetUI() {
       const title = document.querySelector('.sheet__title');
-      const subtitle = document.querySelector('.sheet__sub--muted');
-      const minDeposit = document.querySelector('.sheet__sub');
+      const subtitle = document.querySelector('.sheet__sub');
       const inputIcon = document.querySelector('.dep-input__icon');
       const input = document.getElementById('depAmount');
       const btnConnect = document.getElementById('btnConnectWallet');
@@ -257,11 +260,14 @@
       const depActions = document.querySelector('.dep-actions');
 
       if (currentCurrency === 'ton') {
+        // TON MODE
         if (title) title.textContent = 'Deposit TON';
-        if (subtitle) subtitle.textContent = 'Connect your TON wallet';
-        if (minDeposit) minDeposit.innerHTML = 'Minimum deposit <b>0.5 TON</b>';
+        if (subtitle) subtitle.innerHTML = 'Minimum deposit <b>0.5 TON</b>';
         if (inputIcon) inputIcon.src = '/icons/ton.svg';
-        if (input) input.placeholder = '0 TON';
+        if (input) {
+          input.placeholder = '0 TON';
+          input.value = '';
+        }
         if (btnConnect) {
           btnConnect.style.display = '';
           btnConnect.innerHTML = '<span class="btn__icons"><img src="/icons/telegram.svg" alt=""></span> Connect wallet';
@@ -273,10 +279,12 @@
       } else {
         // STARS MODE
         if (title) title.textContent = 'Buy Telegram Stars';
-        if (subtitle) subtitle.textContent = 'Purchase via Telegram';
-        if (minDeposit) minDeposit.innerHTML = 'Minimum purchase <b>50 Stars</b>';
+        if (subtitle) subtitle.innerHTML = 'Minimum purchase <b>50 Stars</b>';
         if (inputIcon) inputIcon.src = '/icons/stars.svg';
-        if (input) input.placeholder = '0 Stars';
+        if (input) {
+          input.placeholder = '0 Stars';
+          input.value = '';
+        }
         if (btnConnect) {
           btnConnect.style.display = 'none';
         }
@@ -309,51 +317,50 @@
         } else {
           alert(msg);
         }
+        if (tg.HapticFeedback) {
+          tg.HapticFeedback.notificationOccurred('warning');
+        }
         return;
       }
 
       try {
-        console.log('[Switch] Creating invoice for', starsAmount, 'stars');
+        console.log('[Switch] Creating Stars invoice for amount:', starsAmount);
 
-        // Создаем инвойс на бэкенде
-        const response = await fetch('/api/create-stars-invoice', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: starsAmount,
-            userId: tg.initDataUnsafe?.user?.id,
-            initData: tg.initData
-          })
-        });
+        // ВАРИАНТ 1: Используем Telegram Stars API (если доступен)
+        if (typeof tg.openInvoice === 'function') {
+          console.log('[Switch] Using tg.openInvoice method');
+          
+          // Получаем invoice link с вашего сервера
+          const response = await fetch('/api/stars/create-invoice', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              amount: starsAmount,
+              userId: tg.initDataUnsafe?.user?.id
+            })
+          });
 
-        if (!response.ok) {
-          throw new Error(`Server error: ${response.status}`);
-        }
+          if (!response.ok) {
+            throw new Error('Failed to create invoice');
+          }
 
-        const data = await response.json();
-        console.log('[Switch] Invoice created:', data);
+          const data = await response.json();
+          console.log('[Switch] Invoice data:', data);
 
-        if (!data.invoiceLink) {
-          throw new Error('No invoice link received');
-        }
-
-        // Открываем инвойс в Telegram
-        console.log('[Switch] Opening Telegram invoice:', data.invoiceLink);
-        
-        if (tg.openInvoice) {
-          // Используем новый API
+          // Открываем Telegram invoice
           tg.openInvoice(data.invoiceLink, (status) => {
-            console.log('[Switch] Invoice status:', status);
+            console.log('[Switch] Payment status:', status);
             
             if (status === 'paid') {
               console.log('[Switch] Payment successful!');
               
-              userBalance.stars += starsAmount;
-              updateBalanceDisplay(true);
-              
+              // Закрываем deposit sheet
               const sheet = document.getElementById('depositSheet');
               sheet?.classList.remove('sheet--open');
               
+              // Показываем уведомление
               if (tg.showPopup) {
                 tg.showPopup({
                   title: '⭐ Stars Purchased!',
@@ -366,6 +373,11 @@
                 tg.HapticFeedback.notificationOccurred('success');
               }
               
+              // Обновляем баланс
+              userBalance.stars += starsAmount;
+              updateBalanceDisplay(true);
+              
+              // Отправляем событие
               window.dispatchEvent(new CustomEvent('stars:purchased', {
                 detail: { amount: starsAmount }
               }));
@@ -385,9 +397,27 @@
               }
             }
           });
-        } else {
-          // Fallback для старых версий
+        } 
+        // ВАРИАНТ 2: Fallback - открываем ссылку
+        else {
           console.log('[Switch] Using fallback openLink method');
+          
+          const response = await fetch('/api/stars/create-invoice', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              amount: starsAmount,
+              userId: tg.initDataUnsafe?.user?.id
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to create invoice');
+          }
+
+          const data = await response.json();
           tg.openLink(data.invoiceLink);
         }
 
@@ -445,6 +475,7 @@
   
     // ================== INJECT STYLES ==================
     const styles = `
+      /* Balance animation */
       #tonAmount {
         display: inline-block;
         transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -468,16 +499,41 @@
         80%, 100% { transform: scale3d(1, 1, 1); }
       }
 
+      /* Currency switcher */
       .currency-switch {
         display: flex;
         gap: 8px;
         padding: 4px;
-        background: var(--panel);
-        border: 1px solid var(--border);
+        background: var(--panel, #121823);
+        border: 1px solid var(--border, #253247);
         border-radius: 16px;
-        margin-bottom: 6px;
+        margin: 16px 0;
+        position: relative;
+        overflow: hidden;
       }
 
+      /* Анимированный индикатор */
+      .currency-switch::before {
+        content: "";
+        position: absolute;
+        top: 4px;
+        bottom: 4px;
+        left: 4px;
+        width: calc(50% - 8px);
+        border-radius: 12px;
+        background: linear-gradient(135deg, rgba(0,166,255,.15), rgba(13,104,195,.15));
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        pointer-events: none;
+        z-index: 0;
+        transform: translateX(0);
+      }
+
+      /* Сдвиг на Stars */
+      .currency-switch:has(.curr-btn[data-currency="stars"].curr-btn--active)::before {
+        transform: translateX(calc(100% + 8px));
+      }
+
+      /* Кнопки */
       .curr-btn {
         flex: 1;
         display: flex;
@@ -488,18 +544,19 @@
         border-radius: 12px;
         background: transparent;
         border: none;
-        color: var(--muted);
+        color: var(--muted, #99a7bb);
         font-weight: 700;
         font-size: 14px;
-        transition: all .2s ease;
+        transition: color .2s ease, transform .15s ease;
         cursor: pointer;
         user-select: none;
         -webkit-tap-highlight-color: transparent;
         min-height: 44px;
         position: relative;
+        z-index: 1;
       }
 
-      .curr-btn::before {
+      .curr-btn::after {
         content: '';
         position: absolute;
         inset: -6px;
@@ -507,8 +564,7 @@
       }
 
       .curr-btn:hover {
-        background: rgba(255,255,255,.04);
-        color: var(--text);
+        color: var(--text, #e7edf7);
       }
 
       .curr-btn:active {
@@ -516,8 +572,7 @@
       }
 
       .curr-btn--active {
-        color: var(--accent);
-        background: rgba(0,166,255,.08);
+        color: var(--accent, #00a6ff);
       }
 
       .curr-icon {
@@ -535,11 +590,17 @@
 
       .curr-btn--active .curr-icon {
         opacity: 1;
+        filter: drop-shadow(0 0 4px rgba(0,166,255,.3));
       }
 
       .curr-btn span {
         pointer-events: none;
         white-space: nowrap;
+      }
+
+      /* TON pill effects */
+      .pill--ton {
+        transition: all 0.25s ease;
       }
 
       .pill--ton:hover {
@@ -559,6 +620,26 @@
           background: rgba(0,166,255,.12);
           box-shadow: 0 0 0 2px rgba(0,166,255,.4) inset;
         }
+      }
+
+      /* Deposit actions layout */
+      .dep-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      .dep-actions.single {
+        justify-content: center;
+      }
+
+      .dep-actions.single .btn {
+        flex: 0 0 auto;
+        min-width: 200px;
+      }
+
+      .dep-actions:not(.single) .btn {
+        flex: 1;
       }
     `;
   

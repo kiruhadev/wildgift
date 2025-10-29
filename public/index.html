@@ -22,13 +22,10 @@
     <!-- ===== TOP BAR ===== -->
     <header class="topbar" role="banner">
       <!-- Пилюля профиля (аватар + имя) -->
-      <!-- LEFT: user pill (opens Profile) -->
-        <button id="userPill" class="pill pill--user" type="button" aria-label="Open profile">
-          <img id="userAvatar" class="pill-avatar" src="/images/avatar-default.png" alt="" />
-          <span id="userName" class="pill-username">Guest</span>
-        </button>
-
-
+      <button id="userPill" class="pill pill--user" type="button" aria-label="Open profile">
+        <img id="userAvatar" class="pill-avatar" src="/images/avatar-default.png" alt="" />
+        <span id="userName" class="pill-username">Guest</span>
+      </button>
     
       <!-- TON баланс (открывает депозит) -->
       <div class="balance">
@@ -132,55 +129,110 @@
       </section>
     </main>
 
-    <!-- ===== CASES PAGE ===== -->
-    <main id="casesPage" class="page">
-      <section class="cases" aria-label="Cases">
-        <h2>Cases</h2>
-        <div class="cases-grid">
-          <!-- 10 карточек с картинками (плейсхолдеры) -->
-          <div class="case-card">
-            <img src="/images/cases/case-01.png" alt="Case 1" class="case-img" />
-            <div class="case-title">Case 1</div>
+
+
+
+
+
+
+
+   <!-- ===== CASES PAGE ===== -->
+   <main id="casesPage" class="page">
+    <!-- Filter tabs -->
+    <div class="cases-filter">
+      <button class="filter-tab active" data-filter="all">All</button>
+      <button class="filter-tab" data-filter="limited">Limited</button>
+      <button class="filter-tab" data-filter="rare">Rare</button>
+    </div>
+
+    <section class="cases" aria-label="Cases">
+      <div class="cases-grid" id="casesGrid">
+        <!-- Cases будут генерироваться через JS -->
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== CASE DETAIL PAGE ===== -->
+  <main id="caseDetailPage" class="page">
+    <button id="caseBackBtn" class="back-btn" aria-label="Back to cases">
+      <svg viewBox="0 0 24 24" class="back-icon">
+        <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" fill="none"/>
+      </svg>
+      <span>Back</span>
+    </button>
+
+    <section class="case-detail">
+      <div class="case-detail__hero">
+        <img id="caseDetailImage" src="/images/cases/case-01.png" alt="" class="case-detail__image" />
+        <div class="case-detail__glow"></div>
+        
+        <!-- Progress indicator -->
+        <div id="caseProgress" class="case-progress">
+          <div class="case-progress__bar">
+            <div class="case-progress__fill"></div>
           </div>
-          <div class="case-card">
-            <img src="/images/cases/case-02.png" alt="Case 2" class="case-img" />
-            <div class="case-title">Case 2</div>
-          </div>
-          <div class="case-card">
-            <img src="/images/cases/case-03.png" alt="Case 3" class="case-img" />
-            <div class="case-title">Case 3</div>
-          </div>
-          <div class="case-card">
-            <img src="/images/cases/case-04.png" alt="Case 4" class="case-img" />
-            <div class="case-title">Case 4</div>
-          </div>
-          <div class="case-card">
-            <img src="/images/cases/case-05.png" alt="Case 5" class="case-img" />
-            <div class="case-title">Case 5</div>
-          </div>
-          <div class="case-card">
-            <img src="/images/cases/case-06.png" alt="Case 6" class="case-img" />
-            <div class="case-title">Case 6</div>
-          </div>
-          <div class="case-card">
-            <img src="/images/cases/case-07.png" alt="Case 7" class="case-img" />
-            <div class="case-title">Case 7</div>
-          </div>
-          <div class="case-card">
-            <img src="/images/cases/case-08.png" alt="Case 8" class="case-img" />
-            <div class="case-title">Case 8</div>
-          </div>
-          <div class="case-card">
-            <img src="/images/cases/case-09.png" alt="Case 9" class="case-img" />
-            <div class="case-title">Case 9</div>
-          </div>
-          <div class="case-card">
-            <img src="/images/cases/case-10.png" alt="Case 10" class="case-img" />
-            <div class="case-title">Case 10</div>
+          <div class="case-progress__text">
+            <span id="progressCurrent">0</span> / <span id="progressTotal">0</span>
           </div>
         </div>
-      </section>
-    </main>
+      </div>
+
+      <div class="case-detail__info">
+        <div class="case-detail__header">
+          <h2 id="caseDetailTitle" class="case-detail__title">Case Name</h2>
+          <span id="caseDetailRarity" class="case-rarity-badge">Limited</span>
+        </div>
+        
+        <p id="caseDetailDescription" class="case-detail__description">
+          Description of the case
+        </p>
+        
+        <div class="case-detail__stats">
+          <div class="stat-item">
+            <span class="stat-label">Price</span>
+            <div class="stat-value">
+              <img src="/icons/stars.svg" alt="" class="stat-icon" />
+              <span id="caseDetailPrice">0</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Total Opened</span>
+            <div class="stat-value">
+              <span id="caseTotalOpened">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="case-actions">
+        <button id="openCaseBtn" class="btn btn--primary btn--large">
+          <span class="btn__text">Open for 0 ⭐</span>
+        </button>
+        
+        <button id="demoCaseBtn" class="btn btn--secondary btn--large">
+          <span class="btn__text">🎮 Demo Mode</span>
+        </button>
+      </div>
+
+      <!-- Prizes section -->
+      <div class="case-rewards">
+        <h3 class="case-rewards__title">
+          <span>Main prize</span>
+        </h3>
+        <div id="mainPrize" class="main-prize">
+          <!-- Главный приз -->
+        </div>
+
+        <h3 class="case-rewards__title">
+          <span>Other prizes</span>
+        </h3>
+        <div id="caseRewardsList" class="case-rewards__list">
+          <!-- Остальные призы -->
+        </div>
+      </div>
+    </section>
+  </main>
 
     <!-- ===== INVENTORY PAGE ===== -->
     <main id="inventoryPage" class="page">
@@ -260,16 +312,6 @@
       <h3 class="section-title">Recent Transactions</h3>
       <div class="tx-list">
         <div class="tx-empty">No transactions yet</div>
-        <!-- Пример транзакции (скрыт):
-        <div class="tx-item">
-          <div class="tx-icon tx-icon--win">+</div>
-          <div class="tx-info">
-            <div class="tx-title">Win 7x</div>
-            <div class="tx-time">2 min ago</div>
-          </div>
-          <div class="tx-amount">+3.5 TON</div>
-        </div>
-        -->
       </div>
     </div>
   </section>
@@ -296,6 +338,7 @@
       </button>
     </nav>
 
+    <!-- ===== DEPOSIT SHEET ===== -->
     <div id="depositSheet" class="sheet">
       <div class="sheet__backdrop"></div>
       <div class="sheet__panel">
@@ -303,7 +346,6 @@
         <button id="depClose" class="sheet__close">×</button>
     
         <h3 class="sheet__title">Deposit</h3>
-        <p class="sheet__sub sheet__sub--muted">Available in TON only</p>
         <p class="sheet__sub">Minimum deposit <b>0.5 TON</b></p>
     
         <label class="dep-input">
@@ -325,18 +367,67 @@
         </div>
       </div>
     </div>
+</div>
 
+<!-- Добавь эти элементы перед закрывающим </body> в твоём index.html -->
+
+<!-- ===== OPENING ANIMATION OVERLAY ===== -->
+<div id="openingOverlay" class="opening-overlay" hidden>
+  <div class="opening-content">
+    <div id="openingReel" class="opening-reel">
+      <!-- Призы генерируются через JS -->
+    </div>
   </div>
+</div>
+
+<!-- ===== RESULT MODAL ===== -->
+<div id="resultModal" class="result-modal" hidden>
+  <div class="result-modal__backdrop"></div>
+  <div class="result-modal__content">
+    <button id="resultClose" class="result-modal__close" aria-label="Close">×</button>
+    
+    <div class="result-confetti"></div>
+    
+    <div class="result-gift">
+      <div class="result-gift__image">
+        <div id="resultGiftIcon" class="result-gift__icon">🎁</div>
+      </div>
+      <h3 id="resultGiftName" class="result-gift__name">Gift Name</h3>
+      <div id="resultGiftValue" class="result-gift__value">
+        <img src="/icons/stars.svg" alt="" />
+        <span>0</span>
+      </div>
+    </div>
+    
+    <button id="resultOpenAnother" class="btn btn--primary btn--large">
+      <span class="btn__text">🎁 Try Again</span>
+    </button>
+  </div>
+</div>
+
+<!-- ===== INVENTORY GRID (если ещё нет) ===== -->
+<style>
+  .inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    padding: 16px;
+  }
+  
+  @media (max-width: 380px) {
+    .inventory-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>
 
   <!-- Скрипты проекта -->
   <script src="/js/app.js" defer></script>
   <script src="/js/deposit.js" defer></script>
   <script src="/js/wheel.js" defer></script>
   <script src="/js/switch.js" defer></script>
-  
+  <script src="/js/cases.js" defer></script>
   <script src="/js/profile.js" defer></script>
-  
- 
 
 </body>
 </html>
