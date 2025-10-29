@@ -86,8 +86,8 @@
       // Обновляем UI
       updateCurrencyUI();
       
-      // Обновляем дисплей баланса
-      updateBalanceDisplay();
+      // Обновляем дисплей баланса С АНИМАЦИЕЙ
+      updateBalanceDisplay(true);
       
       // Уведомляем другие модули
       window.dispatchEvent(new CustomEvent('currency:changed', {
@@ -133,18 +133,61 @@
         userBalance.stars = parseInt(balances.stars) || 0;
       }
       
-      updateBalanceDisplay();
+      updateBalanceDisplay(true); // С АНИМАЦИЕЙ
     }
   
-    function updateBalanceDisplay() {
+    function updateBalanceDisplay(animate = false) {
       const tonAmount = document.getElementById('tonAmount');
       if (!tonAmount) return;
   
-      if (currentCurrency === 'ton') {
-        tonAmount.textContent = userBalance.ton.toFixed(2);
+      const targetValue = currentCurrency === 'ton' 
+        ? userBalance.ton.toFixed(2)
+        : formatStars(userBalance.stars);
+  
+      if (animate) {
+        animateBalanceChange(tonAmount, targetValue);
       } else {
-        tonAmount.textContent = formatStars(userBalance.stars);
+        tonAmount.textContent = targetValue;
       }
+    }
+  
+    /**
+     * Плавная анимация изменения баланса с эффектом "желе"
+     */
+    function animateBalanceChange(element, targetValue) {
+      // Добавляем класс для jelly-анимации
+      element.classList.add('balance-jelly');
+      
+      // Счетчик для плавного изменения числа
+      const currentText = element.textContent;
+      const currentNum = parseFloat(currentText.replace(/[^\d.]/g, '')) || 0;
+      const targetNum = parseFloat(targetValue.replace(/[^\d.]/g, '')) || 0;
+      
+      const duration = 800;
+      const steps = 30;
+      const stepDuration = duration / steps;
+      const increment = (targetNum - currentNum) / steps;
+      
+      let currentStep = 0;
+      
+      const timer = setInterval(() => {
+        currentStep++;
+        
+        if (currentStep >= steps) {
+          element.textContent = targetValue;
+          clearInterval(timer);
+          
+          // Убираем класс после окончания анимации
+          setTimeout(() => {
+            element.classList.remove('balance-jelly');
+          }, 600);
+        } else {
+          const newValue = currentNum + (increment * currentStep);
+          element.textContent = currentCurrency === 'ton' 
+            ? newValue.toFixed(2)
+            : formatStars(Math.round(newValue));
+        }
+      }, stepDuration);
     }
   
     function formatStars(amount) {
@@ -166,6 +209,15 @@
       updateDepositSheetUI();
       sheet.classList.add('sheet--open');
       
+      // Добавляем эффект вспышки на pill
+      const tonPill = document.querySelector('.pill--ton');
+      if (tonPill) {
+        tonPill.classList.add('balance-flash');
+        setTimeout(() => {
+          tonPill.classList.remove('balance-flash');
+        }, 600);
+      }
+      
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.impactOccurred('light');
       }
@@ -179,6 +231,7 @@
       const input = document.getElementById('depAmount');
       const btnConnect = document.getElementById('btnConnectWallet');
       const btnDeposit = document.getElementById('btnDepositNow');
+      const depActions = document.querySelector('.dep-actions');
   
       if (currentCurrency === 'ton') {
         if (title) title.textContent = 'Deposit TON';
@@ -187,9 +240,11 @@
         if (inputIcon) inputIcon.src = '/icons/ton.svg';
         if (input) input.placeholder = '0 TON';
         if (btnConnect) {
+          btnConnect.style.display = ''; // Показываем кнопку
           btnConnect.innerHTML = '<span class="btn__icons"><img src="/icons/telegram.svg" alt=""></span> Connect wallet';
         }
         if (btnDeposit) btnDeposit.textContent = 'Deposit Now';
+        if (depActions) depActions.classList.remove('single'); // Две кнопки
       } else {
         if (title) title.textContent = 'Buy Stars';
         if (subtitle) subtitle.textContent = 'Pay with Telegram';
@@ -200,6 +255,7 @@
           btnConnect.style.display = 'none'; // Для Stars не нужен кошелек
         }
         if (btnDeposit) btnDeposit.textContent = 'Buy Stars';
+        if (depActions) depActions.classList.add('single'); // Одна кнопка по центру
       }
     }
   
@@ -297,9 +353,13 @@
     function onStarsPurchaseSuccess(amount) {
       console.log(`[Switch] Stars purchase successful: ${amount}`);
   
-      // Обновляем баланс
+      // Обновляем баланс С МОЩНОЙ АНИМАЦИЕЙ
       userBalance.stars += amount;
-      updateBalanceDisplay();
+      
+      // Добавляем визуальный взрыв успеха
+      triggerSuccessExplosion();
+      
+      updateBalanceDisplay(true);
   
       // Закрываем sheet
       const sheet = document.getElementById('depositSheet');
@@ -310,9 +370,13 @@
       // Показываем уведомление
       showSuccess(`Вы получили ${amount} Stars!`);
   
-      // Haptic feedback
+      // МОЩНЫЙ Haptic feedback
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.notificationOccurred('success');
+        // Двойной тапtic для большего эффекта
+        setTimeout(() => {
+          tg.HapticFeedback.impactOccurred('heavy');
+        }, 100);
       }
   
       // Уведомляем другие модули
@@ -322,6 +386,79 @@
   
       // Отправляем на сервер (если есть backend)
       sendStarsPurchaseToServer(amount);
+    }
+  
+    /**
+     * Визуальный "взрыв" успеха при пополнении
+     */
+    function triggerSuccessExplosion() {
+      const tonPill = document.querySelector('.pill--ton');
+      if (!tonPill) return;
+  
+      // Добавляем класс для супер-анимации
+      tonPill.classList.add('balance-explosion');
+      
+      setTimeout(() => {
+        tonPill.classList.remove('balance-explosion');
+      }, 1200);
+  
+      // Создаем частицы успеха вокруг pill
+      createSuccessParticles(tonPill);
+    }
+  
+    /**
+     * Создание анимированных частиц вокруг элемента
+     */
+    function createSuccessParticles(element) {
+      const rect = element.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+  
+      for (let i = 0; i < 12; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'success-particle';
+        particle.style.cssText = `
+          position: fixed;
+          left: ${centerX}px;
+          top: ${centerY}px;
+          width: 8px;
+          height: 8px;
+          background: radial-gradient(circle, rgba(0,166,255,1) 0%, rgba(0,166,255,0) 70%);
+          border-radius: 50%;
+          pointer-events: none;
+          z-index: 9999;
+        `;
+        
+        document.body.appendChild(particle);
+  
+        const angle = (Math.PI * 2 * i) / 12;
+        const distance = 60 + Math.random() * 40;
+        const duration = 800 + Math.random() * 400;
+  
+        const targetX = centerX + Math.cos(angle) * distance;
+        const targetY = centerY + Math.sin(angle) * distance;
+  
+        particle.animate([
+          { 
+            transform: 'translate(0, 0) scale(0)',
+            opacity: 1 
+          },
+          { 
+            transform: `translate(${targetX - centerX}px, ${targetY - centerY}px) scale(1.5)`,
+            opacity: 1,
+            offset: 0.5
+          },
+          { 
+            transform: `translate(${targetX - centerX}px, ${targetY - centerY}px) scale(0)`,
+            opacity: 0 
+          }
+        ], {
+          duration: duration,
+          easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+        }).onfinish = () => {
+          particle.remove();
+        };
+      }
     }
   
     /**
@@ -440,7 +577,7 @@
       updateBalance: updateBalance,
       setBalance: (currency, amount) => {
         userBalance[currency] = currency === 'ton' ? parseFloat(amount) : parseInt(amount);
-        updateBalanceDisplay();
+        updateBalanceDisplay(true); // С АНИМАЦИЕЙ
       },
       
       // Payments
@@ -453,6 +590,223 @@
       // Utils
       formatStars: formatStars
     };
+  
+    // ================== INJECT JELLY STYLES ==================
+    const jellyStyles = `
+      /* 🍮 Jelly Balance Animation */
+      #tonAmount {
+        display: inline-block;
+        transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+        will-change: transform;
+      }
+  
+      /* Активная анимация желе */
+      #tonAmount.balance-jelly {
+        animation: jellyBounce 0.8s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+        transform-origin: center;
+      }
+  
+      @keyframes jellyBounce {
+        0% {
+          transform: scale3d(1, 1, 1);
+        }
+        10% {
+          transform: scale3d(1.25, 0.75, 1);
+        }
+        20% {
+          transform: scale3d(0.85, 1.15, 1);
+        }
+        30% {
+          transform: scale3d(1.15, 0.85, 1);
+        }
+        40% {
+          transform: scale3d(0.95, 1.05, 1);
+        }
+        50% {
+          transform: scale3d(1.05, 0.95, 1);
+        }
+        60% {
+          transform: scale3d(0.98, 1.02, 1);
+        }
+        70% {
+          transform: scale3d(1.02, 0.98, 1);
+        }
+        80% {
+          transform: scale3d(1, 1, 1);
+        }
+        100% {
+          transform: scale3d(1, 1, 1);
+        }
+      }
+  
+      /* Hover эффект для pill - притягивает внимание */
+      .pill--ton {
+        transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        cursor: pointer;
+      }
+  
+      .pill--ton:hover {
+        transform: translateY(-2px) scale(1.02);
+        box-shadow: 
+          0 0 0 1px rgba(0,166,255,.35) inset,
+          0 8px 24px rgba(0,166,255,.25),
+          0 0 30px rgba(0,166,255,.15);
+      }
+  
+      .pill--ton:active {
+        transform: translateY(0) scale(0.98);
+        transition-duration: 0.1s;
+      }
+  
+      /* Эффект свечения при изменении баланса */
+      .pill--ton.balance-flash {
+        animation: balanceFlash 0.6s ease;
+      }
+  
+      @keyframes balanceFlash {
+        0%, 100% {
+          background: var(--panel);
+        }
+        50% {
+          background: rgba(0,166,255,.12);
+          box-shadow: 
+            0 0 0 2px rgba(0,166,255,.4) inset,
+            0 0 30px rgba(0,166,255,.3);
+        }
+      }
+  
+      /* Пульсация иконки при hover */
+      .pill--ton:hover .pill-icon {
+        animation: iconPulse 1s ease infinite;
+      }
+  
+      @keyframes iconPulse {
+        0%, 100% {
+          transform: scale(1);
+          filter: brightness(1);
+        }
+        50% {
+          transform: scale(1.1);
+          filter: brightness(1.2) drop-shadow(0 0 8px rgba(0,166,255,.5));
+        }
+      }
+  
+      /* Плюсик тоже анимируется */
+      .pill--ton:hover .pill-plus-icon {
+        animation: plusRotate 0.6s ease;
+      }
+  
+      @keyframes plusRotate {
+        0% {
+          transform: rotate(0deg) scale(1);
+        }
+        50% {
+          transform: rotate(90deg) scale(1.2);
+        }
+        100% {
+          transform: rotate(180deg) scale(1);
+        }
+      }
+  
+      /* Магнитный эффект для всей pill */
+      .pill--ton {
+        position: relative;
+      }
+  
+      .pill--ton::before {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border-radius: 999px;
+        background: radial-gradient(circle at center, rgba(0,166,255,.15) 0%, transparent 70%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+      }
+  
+      .pill--ton:hover::before {
+        opacity: 1;
+        animation: magneticPulse 1.5s ease infinite;
+      }
+  
+      @keyframes magneticPulse {
+        0%, 100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.1);
+          opacity: 0.6;
+        }
+      }
+  
+      /* 💥 ВЗРЫВ УСПЕХА при пополнении */
+      .pill--ton.balance-explosion {
+        animation: 
+          explosionScale 0.8s cubic-bezier(0.34, 1.56, 0.64, 1),
+          explosionGlow 1.2s ease;
+      }
+  
+      @keyframes explosionScale {
+        0% {
+          transform: scale(1);
+        }
+        25% {
+          transform: scale(1.3) rotate(3deg);
+        }
+        50% {
+          transform: scale(0.9) rotate(-3deg);
+        }
+        75% {
+          transform: scale(1.1) rotate(1deg);
+        }
+        100% {
+          transform: scale(1) rotate(0deg);
+        }
+      }
+  
+      @keyframes explosionGlow {
+        0% {
+          box-shadow: 
+            0 0 0 0 rgba(0,166,255,.7),
+            inset 0 0 0 1px rgba(255,255,255,.05);
+        }
+        50% {
+          box-shadow: 
+            0 0 0 12px rgba(0,166,255,0),
+            0 0 50px rgba(0,166,255,.6),
+            inset 0 0 20px rgba(0,166,255,.4);
+        }
+        100% {
+          box-shadow: 
+            0 0 0 0 rgba(0,166,255,0),
+            inset 0 0 0 1px rgba(255,255,255,.05);
+        }
+      }
+  
+      /* Добавляем эффект "сочности" */
+      .pill--ton {
+        backdrop-filter: blur(8px);
+      }
+  
+      .pill--ton:hover {
+        backdrop-filter: blur(12px);
+      }
+  
+      /* Частицы успеха */
+      .success-particle {
+        animation: particleFade 1s ease-out forwards;
+      }
+  
+      @keyframes particleFade {
+        to { opacity: 0; }
+      }
+    `;
+  
+    // Внедряем стили
+    const styleSheet = document.createElement('style');
+    styleSheet.textContent = jellyStyles;
+    document.head.appendChild(styleSheet);
   
     // ================== AUTO-INIT ==================
     if (document.readyState === 'loading') {
