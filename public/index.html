@@ -29,11 +29,7 @@
         </button>
 
 
-      <!-- Логотип проекта -->
-      <div class="logo-wrap" aria-label="App logo">
-        <img src="/images/logo/logo.png" alt="Wild Time" class="app-logo" />
-      </div>
-
+    
       <!-- TON баланс (открывает депозит) -->
       <div class="balance">
         <button id="tonPill" class="pill pill--ton" type="button" aria-label="TON balance" data-open-deposit>
@@ -208,28 +204,76 @@
       </section>
     </main>
 
-    <!-- ===== PROFILE PAGE ===== -->
-    <main id="profilePage" class="page">
-      <section class="profile-card">
-        <img id="profileAvatar" class="profile-ava" alt="" />
-        <h2 id="profileName" class="profile-name">User</h2>
-        <p id="profileHandle" class="profile-handle">—</p>
-    
-        <button id="walletPill" class="wallet-pill" type="button">
-          <img src="/icons/ton.svg" class="icon-16" alt="">
-          <span id="profileWallet">Not connected</span>
-          <svg class="chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
-        </button>
-    
-        <div id="walletDetails" class="wallet-details" hidden>
-          <div id="walletFull" class="wallet-full mono">—</div>
-          <div class="row">
-            <button id="walletCopy" class="btn">Copy</button>
-            <button id="profileDisconnect" class="btn btn-danger">Disconnect</button>
+   <!-- ===== PROFILE PAGE ===== -->
+<main id="profilePage" class="page">
+  <section class="profile-card">
+    <!-- Аватар + имя -->
+    <img id="profileAvatar" class="profile-ava" src="/images/avatar-default.png" alt="" />
+    <h2 id="profileName" class="profile-name">User</h2>
+    <p id="profileHandle" class="profile-handle">@username</p>
+
+    <!-- Переключатель валюты -->
+    <div class="currency-switch">
+      <button class="curr-btn curr-btn--active" data-currency="ton">
+        <img src="/icons/ton.svg" alt="" class="curr-icon">
+        <span>TON</span>
+      </button>
+      <button class="curr-btn" data-currency="stars">
+        <img src="/icons/stars.svg" alt="" class="curr-icon">
+        <span>Stars</span>
+      </button>
+    </div>
+
+    <!-- Кошелёк -->
+    <button id="walletPill" class="wallet-pill" type="button">
+      <img src="/icons/ton.svg" class="icon-16" alt="">
+      <span id="profileWallet">Not connected</span>
+      <svg class="chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+    </button>
+
+    <div id="walletDetails" class="wallet-details" hidden>
+      <div id="walletFull" class="wallet-full mono">—</div>
+      <div class="row">
+        <button id="walletCopy" class="btn">Copy</button>
+        <button id="profileDisconnect" class="btn btn-danger">Disconnect</button>
+      </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="profile-stats">
+      <div class="stat-card">
+        <div class="stat-value">0</div>
+        <div class="stat-label">Games</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">0.00</div>
+        <div class="stat-label">Won</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">0%</div>
+        <div class="stat-label">Win Rate</div>
+      </div>
+    </div>
+
+    <!-- Последние транзакции -->
+    <div class="profile-section">
+      <h3 class="section-title">Recent Transactions</h3>
+      <div class="tx-list">
+        <div class="tx-empty">No transactions yet</div>
+        <!-- Пример транзакции (скрыт):
+        <div class="tx-item">
+          <div class="tx-icon tx-icon--win">+</div>
+          <div class="tx-info">
+            <div class="tx-title">Win 7x</div>
+            <div class="tx-time">2 min ago</div>
           </div>
+          <div class="tx-amount">+3.5 TON</div>
         </div>
-      </section>
-    </main>
+        -->
+      </div>
+    </div>
+  </section>
+</main>
     
 
     <!-- ===== BOTTOM NAV (SVG + подписи) ===== -->
