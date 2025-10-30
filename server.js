@@ -112,7 +112,7 @@ app.post("/deposit", async (req, res) => {
 });
 
 // ====== STARS PAYMENT API ======
-// Создание Stars Invoice через sendInvoice
+// Создание Stars Invoice через createInvoiceLink
 app.post("/api/stars/create-invoice", async (req, res) => {
   try {
     const { amount, userId } = req.body;
@@ -146,16 +146,15 @@ app.post("/api/stars/create-invoice", async (req, res) => {
     // Генерируем уникальный payload
     const payload = `stars_${userId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-    // ВАЖНО: Для Stars используем sendInvoice вместо createInvoiceLink
+    // Создаём invoice link через createInvoiceLink
     const telegramResponse = await fetch(
-      `https://api.telegram.org/bot${BOT_TOKEN}/sendInvoice`,
+      `https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: userId,
-          title: `⭐ ${amount} Telegram Stars`,
-          description: `Top up your WildGift balance with ${amount} Stars`,
+          title: `${amount} Telegram Stars`,
+          description: `Top up your WildGift balance`,
           payload: payload,
           provider_token: '', // Пустой для Stars
           currency: 'XTR',
@@ -182,10 +181,10 @@ app.post("/api/stars/create-invoice", async (req, res) => {
       });
     }
 
-    // Успех - возвращаем message_id для открытия invoice
+    // Успех - возвращаем invoice link
     res.json({
       ok: true,
-      messageId: invoiceData.result.message_id,
+      invoiceLink: invoiceData.result,
       invoiceId: payload,
       amount: amount
     });

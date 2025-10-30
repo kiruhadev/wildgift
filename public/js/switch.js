@@ -333,7 +333,7 @@
       const originalText = btnDeposit?.textContent;
       if (btnDeposit) {
         btnDeposit.disabled = true;
-        btnDeposit.textContent = 'Creating invoice...';
+        btnDeposit.textContent = 'Opening payment...';
       }
 
       if (tg?.HapticFeedback) {
@@ -360,34 +360,71 @@
       const data = await response.json();
       console.log('[Switch] Invoice data:', data);
 
-      if (!data.ok || !data.messageId) {
+      if (!data.ok || !data.invoiceLink) {
         throw new Error(data.error || 'Invalid invoice response');
-      }
-
-      // Разблокируем кнопку
-      if (btnDeposit) {
-        btnDeposit.disabled = false;
-        btnDeposit.textContent = originalText || 'Buy Stars';
       }
 
       // Закрываем deposit sheet
       const sheet = document.getElementById('depositSheet');
       sheet?.classList.remove('sheet--open');
 
-      // Показываем сообщение
-      if (tg.showPopup) {
-        tg.showPopup({
-          title: '⭐ Invoice Sent',
-          message: `Check your chat with the bot to complete the payment of ${starsAmount} Star${starsAmount > 1 ? 's' : ''}`,
-          buttons: [{ type: 'ok' }]
-        });
-      } else if (tg.showAlert) {
-        tg.showAlert(`Invoice sent! Open bot chat to pay ${starsAmount} Star${starsAmount > 1 ? 's' : ''}`);
-      }
-
-      if (tg.HapticFeedback) {
-        tg.HapticFeedback.notificationOccurred('success');
-      }
+      // Открываем invoice через Telegram WebApp API
+      console.log('[Switch] Opening invoice:', data.invoiceLink);
+      
+      tg.openInvoice(data.invoiceLink, (status) => {
+        console.log('[Switch] Payment status:', status);
+        
+        // Разблокируем кнопку
+        if (btnDeposit) {
+          btnDeposit.disabled = false;
+          btnDeposit.textContent = originalText || 'Buy Stars';
+        }
+        
+        if (status === 'paid') {
+          console.log('[Switch] Payment successful!');
+          
+          if (tg.showPopup) {
+            tg.showPopup({
+              title: '✅ Payment Successful',
+              message: `You purchased ${starsAmount} Star${starsAmount > 1 ? 's' : ''}!`,
+              buttons: [{ type: 'ok' }]
+            });
+          } else if (tg.showAlert) {
+            tg.showAlert(`Success! You got ${starsAmount} Star${starsAmount > 1 ? 's' : ''}`);
+          }
+          
+          if (tg.HapticFeedback) {
+            tg.HapticFeedback.notificationOccurred('success');
+          }
+          
+          // Обновляем баланс
+          userBalance.stars += starsAmount;
+          updateBalanceDisplay(true);
+          
+          // Отправляем событие
+          window.dispatchEvent(new CustomEvent('stars:purchased', {
+            detail: { amount: starsAmount }
+          }));
+          
+        } else if (status === 'cancelled') {
+          console.log('[Switch] Payment cancelled');
+          
+          if (tg.HapticFeedback) {
+            tg.HapticFeedback.notificationOccurred('warning');
+          }
+          
+        } else if (status === 'failed') {
+          console.error('[Switch] Payment failed');
+          
+          if (tg.showAlert) {
+            tg.showAlert('Payment failed. Please try again.');
+          }
+          
+          if (tg.HapticFeedback) {
+            tg.HapticFeedback.notificationOccurred('error');
+          }
+        }
+      });
 
     } catch (error) {
       console.error('[Switch] Error buying stars:', error);
