@@ -112,10 +112,10 @@ app.post("/deposit", async (req, res) => {
 });
 
 // ====== STARS PAYMENT API ======
-// Создание Stars Invoice
+// Создание Stars Invoice через sendInvoice
 app.post("/api/stars/create-invoice", async (req, res) => {
   try {
-    const { amount, userId, initData } = req.body;
+    const { amount, userId } = req.body;
 
     console.log('[Stars API] Creating invoice:', { amount, userId });
 
@@ -134,40 +134,31 @@ app.post("/api/stars/create-invoice", async (req, res) => {
       });
     }
 
-    // Проверка BOT_TOKEN
     const BOT_TOKEN = process.env.BOT_TOKEN;
     if (!BOT_TOKEN) {
       console.error('[Stars API] Bot token not configured!');
       return res.status(500).json({
         ok: false,
-        error: 'Payment system not configured. Please set BOT_TOKEN in .env'
+        error: 'Payment system not configured'
       });
-    }
-
-    // Опционально: проверка initData
-    if (initData) {
-      const check = verifyInitData(initData, BOT_TOKEN, 300);
-      if (!check.ok) {
-        return res.status(401).json({ ok: false, error: "unauthorized" });
-      }
     }
 
     // Генерируем уникальный payload
     const payload = `stars_${userId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-    // Создаём invoice через Telegram Bot API
+    // ВАЖНО: Для Stars используем sendInvoice вместо createInvoiceLink
     const telegramResponse = await fetch(
-      `https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`,
+      `https://api.telegram.org/bot${BOT_TOKEN}/sendInvoice`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          chat_id: userId,
           title: `⭐ ${amount} Telegram Stars`,
           description: `Top up your WildGift balance with ${amount} Stars`,
           payload: payload,
-          currency: 'XTR', // Telegram Stars currency code
+          provider_token: '', // Пустой для Stars
+          currency: 'XTR',
           prices: [
             {
               label: `${amount} Stars`,
@@ -191,10 +182,10 @@ app.post("/api/stars/create-invoice", async (req, res) => {
       });
     }
 
-    // Успех
+    // Успех - возвращаем message_id для открытия invoice
     res.json({
       ok: true,
-      invoiceLink: invoiceData.result,
+      messageId: invoiceData.result.message_id,
       invoiceId: payload,
       amount: amount
     });
@@ -208,14 +199,37 @@ app.post("/api/stars/create-invoice", async (req, res) => {
   }
 });
 
-// Webhook для обработки successful_payment
+// Webhook для обработки successful_payment и pre_checkout_query
 app.post("/api/stars/webhook", async (req, res) => {
   try {
     const update = req.body;
 
     console.log('[Stars Webhook] Received update:', JSON.stringify(update, null, 2));
 
-    // Проверяем successful_payment
+    // Обработка pre_checkout_query (обязательно!)
+    if (update.pre_checkout_query) {
+      const query = update.pre_checkout_query;
+      const BOT_TOKEN = process.env.BOT_TOKEN;
+
+      console.log('[Stars Webhook] Pre-checkout query:', query.id);
+
+      // Отвечаем OK на pre-checkout
+      await fetch(
+        `https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pre_checkout_query_id: query.id,
+            ok: true
+          })
+        }
+      );
+
+      return res.json({ ok: true });
+    }
+
+    // Обработка successful_payment
     if (update.message?.successful_payment) {
       const payment = update.message.successful_payment;
       const userId = update.message.from.id;
@@ -256,28 +270,6 @@ app.post("/api/stars/webhook", async (req, res) => {
     res.status(500).json({ ok: false, error: error.message });
   }
 });
-
-// Проверка статуса платежа (опционально)
-app.get("/api/stars/payment-status/:invoiceId", async (req, res) => {
-  try {
-    const { invoiceId } = req.params;
-
-    // Здесь проверяй статус в БД
-    // const payment = await getPaymentStatus(invoiceId);
-
-    res.json({
-      ok: true,
-      status: 'pending', // или 'completed', 'failed'
-      invoiceId
-    });
-
-  } catch (error) {
-    console.error('[Stars API] Error checking payment status:', error);
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// Deposit notification endpoint (если нужен)
 app.post("/api/deposit-notification", async (req, res) => {
   try {
     const { amount, currency, userId, txHash, timestamp } = req.body;
