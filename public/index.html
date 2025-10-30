@@ -132,10 +132,6 @@
 
 
 
-
-
-
-
    <!-- ===== CASES PAGE ===== -->
    <main id="casesPage" class="page">
     <!-- Filter tabs -->
@@ -210,15 +206,15 @@
           <span class="btn__text">Open for 0 ⭐</span>
         </button>
         
-        <button id="demoCaseBtn" class="btn btn--secondary btn--large">
-          <span class="btn__text">🎮 Demo Mode</span>
+        <button id="viewRewardsBtn" class="btn btn--ghost btn--large">
+          <span class="btn__text">View All Rewards</span>
         </button>
       </div>
 
-      <!-- Prizes section -->
-      <div class="case-rewards">
+      <!-- Rewards section -->
+      <div id="caseRewards" class="case-rewards">
         <h3 class="case-rewards__title">
-          <span>Main prize</span>
+          <span>Main Prize</span>
         </h3>
         <div id="mainPrize" class="main-prize">
           <!-- Главный приз -->
@@ -345,7 +341,15 @@
         <div class="sheet__handle"></div>
         <button id="depClose" class="sheet__close">×</button>
     
-        <h3 class="sheet__title">Deposit</h3>
+        <h3 class="sheet__title">Deposit WildGift Balance</h3>
+        
+        <!-- НОВОЕ: Показываем баланс кошелька -->
+        <div class="wallet-balance-display">
+          <img src="/icons/telegram.svg" alt="" class="wallet-icon" />
+          <span class="wallet-balance-label">Wallet Balance:</span>
+          <span id="walletBalance" class="wallet-balance-value">—</span>
+        </div>
+        
         <p class="sheet__sub">Minimum deposit <b>0.5 TON</b></p>
     
         <label class="dep-input">
@@ -418,6 +422,34 @@
     .inventory-grid {
       grid-template-columns: repeat(2, 1fr);
     }
+  }
+  
+  /* Стили для отображения баланса кошелька */
+  .wallet-balance-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    margin: 12px 0;
+  }
+  
+  .wallet-icon {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .wallet-balance-label {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+  }
+  
+  .wallet-balance-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
   }
 </style>
 

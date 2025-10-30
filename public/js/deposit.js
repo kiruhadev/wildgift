@@ -13,6 +13,7 @@
   const btnConnect   = document.getElementById("btnConnectWallet");
   const btnDeposit   = document.getElementById("btnDepositNow");
   const tonPill      = document.getElementById("tonPill");
+  const walletBalanceEl = document.getElementById("walletBalance");
 
   // ====== helpers ======
   const tg = window.Telegram?.WebApp;
@@ -52,6 +53,12 @@
     return (BigInt(i||"0")*1_000_000_000n + BigInt(frac9)).toString();
   }
 
+  function fromNano(nanoStr) {
+    const nano = BigInt(nanoStr);
+    const ton = Number(nano) / 1_000_000_000;
+    return ton.toFixed(2);
+  }
+
   function openSheet(){ 
     sheet?.classList.add("sheet--open"); 
     if (tg?.HapticFeedback) {
@@ -63,7 +70,6 @@
     sheet?.classList.remove("sheet--open"); 
   }
 
-  tonPill?.addEventListener("click", openSheet);
   backdrop?.addEventListener("click", closeSheet);
   btnClose?.addEventListener("click", closeSheet);
 
@@ -87,54 +93,117 @@
   
   console.log('[deposit] Initializing TonConnect with manifest:', MANIFEST_URL);
   
-  // КРИТИЧНО: Правильная конфигурация TonConnect для работы в Telegram
   const tc = new TON_CONNECT_UI.TonConnectUI({
     manifestUrl: MANIFEST_URL,
-    buttonRootId: null, // НЕ создаём кнопку автоматически
+    buttonRootId: null,
     uiPreferences: { 
       theme: "SYSTEM"
     },
     storage,
     restoreConnection: true,
-    // ВАЖНО: Настройки для Telegram WebApp
     actionsConfiguration: {
-      twaReturnUrl: 'https://t.me' // Возврат в Telegram после подключения
+      twaReturnUrl: 'https://t.me'
     }
   });
 
-  // Отдадим другим модулям (profile.js)
   window.__wtTonConnect = tc;
   window.dispatchEvent(new Event("wt-tc-ready"));
 
+  // ====== ЗАГРУЗКА БАЛАНСА КОШЕЛЬКА ======
+  async function fetchWalletBalance() {
+    if (!tc.account) return null;
+    
+    try {
+      const address = tc.account.address;
+      console.log('[deposit] Fetching balance for:', address);
+      
+      // Используем публичный API TON
+      const response = await fetch(`https://toncenter.com/api/v2/getAddressBalance?address=${address}`);
+      const data = await response.json();
+      
+      if (data.ok && data.result) {
+        const balance = fromNano(data.result);
+        console.log('[deposit] Wallet balance:', balance, 'TON');
+        return balance;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[deposit] Error fetching wallet balance:', error);
+      return null;
+    }
+  }
+
+  // ====== ОБРАБОТЧИК КЛИКА НА ПИЛЮЛЮ ======
+  tonPill?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    
+    const currentCurrency = getCurrentCurrency();
+    console.log('[deposit] TON pill clicked. Currency:', currentCurrency, 'Connected:', !!tc.account);
+    
+    // Если валюта не TON - не обрабатываем
+    if (currentCurrency !== 'ton') {
+      console.log('[deposit] Not TON mode, ignoring');
+      return;
+    }
+    
+    // Если кошелек НЕ подключен - открываем модалку TonConnect
+    if (!tc.account) {
+      console.log('[deposit] Wallet not connected, opening TonConnect modal');
+      await openWalletModal();
+      return;
+    }
+    
+    // Если кошелек подключен - открываем панель депозита
+    console.log('[deposit] Wallet connected, opening deposit sheet');
+    
+    // Обновляем баланс перед открытием
+    await updateWalletBalance();
+    
+    openSheet();
+  });
+
+  // ====== ОБНОВЛЕНИЕ ОТОБРАЖЕНИЯ БАЛАНСА ======
+  async function updateWalletBalance() {
+    if (!walletBalanceEl) return;
+    
+    if (!tc.account) {
+      walletBalanceEl.textContent = '—';
+      return;
+    }
+    
+    walletBalanceEl.textContent = 'Loading...';
+    const balance = await fetchWalletBalance();
+    
+    if (balance !== null) {
+      walletBalanceEl.textContent = `${balance} TON`;
+    } else {
+      walletBalanceEl.textContent = 'Error';
+    }
+  }
+
   // Следим за изменением статуса
-  tc.onStatusChange((wallet) => {
+  tc.onStatusChange(async (wallet) => {
     console.log('[deposit] TonConnect status changed:', wallet ? 'connected' : 'disconnected');
     if (wallet) {
       console.log('[deposit] Wallet connected:', wallet.account.address);
+      await updateWalletBalance();
     }
     renderUI();
   });
 
-  // ИСПРАВЛЕНО: Правильное открытие модалки
+  // ====== ОТКРЫТИЕ МОДАЛКИ TONCONNECT ======
   async function openWalletModal() {
     try {
       console.log('[deposit] Opening TonConnect modal...');
-      
-      // Закрываем наш sheet ПЕРЕД открытием TonConnect
-      sheet?.classList.add("sheet--hidden");
       
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.impactOccurred('medium');
       }
       
-      // КРИТИЧНО: Используем правильный метод
-      // openModal() работает только в браузере
-      // Для Telegram используем встроенную интеграцию
       if (tg && tg.openLink) {
-        // В Telegram - открываем через deeplink
         await tc.connectWallet();
       } else {
-        // В браузере - обычная модалка
         await tc.openModal();
       }
       
@@ -142,9 +211,6 @@
       
     } catch (e) {
       console.error("[deposit] Connection error:", e);
-      
-      // Восстанавливаем sheet при ошибке
-      sheet?.classList.remove("sheet--hidden");
       
       const errorMsg = e.message || 'Failed to connect wallet. Please try again.';
       if (tg?.showAlert) {
@@ -156,11 +222,6 @@
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.notificationOccurred('error');
       }
-    } finally {
-      // Возвращаем sheet через 500мс
-      setTimeout(()=>{
-        sheet?.classList.remove("sheet--hidden");
-      }, 500);
     }
   }
 
@@ -170,7 +231,7 @@
     await openWalletModal();
   });
 
-  // ====== ОТПРАВКА УВЕДОМЛЕНИЯ В БОТА ======
+  // ====== ОТПРАВКА УВЕДОМЛЕНИЯ В БОТ ======
   async function notifyBot(amount, txHash = null) {
     try {
       const response = await fetch("/api/deposit-notification", {
@@ -195,7 +256,6 @@
     }
   }
 
-  // ====== ВАЖНО: Проверяем текущую валюту перед обработкой ======
   function getCurrentCurrency() {
     return window.WildTimeCurrency?.current || 'ton';
   }
@@ -209,13 +269,11 @@
     
     console.log('[deposit] Deposit button clicked. Currency:', currentCurrency);
     
-    // КРИТИЧНО: Если Stars - НЕ обрабатываем здесь!
     if (currentCurrency === 'stars') {
       console.log('[deposit] Stars mode - skipping TON logic');
       return;
     }
     
-    // Дальше только логика TON
     const val = normalize(amountInput?.value);
     
     console.log('[deposit] TON deposit. Amount:', val, 'Connected:', !!tc.account);
@@ -327,7 +385,6 @@
     
     console.log('[deposit] Rendering UI. Currency:', currentCurrency, 'Connected:', connected);
     
-    // Для TON показываем/скрываем Connect
     if (currentCurrency === 'ton') {
       if (btnConnect) {
         btnConnect.style.display = connected ? "none" : "";
@@ -338,12 +395,10 @@
         btnDeposit.disabled = !(connected && val >= MIN_DEPOSIT);
       }
     } else {
-      // Для Stars кнопка Connect не нужна
       if (btnConnect) {
         btnConnect.style.display = "none";
       }
       
-      // Для Stars проверяем только сумму
       const val = parseInt(amountInput?.value) || 0;
       if (btnDeposit) {
         btnDeposit.disabled = val < 50;
@@ -351,27 +406,12 @@
     }
   }
 
-  // Слушаем смену валюты
   window.addEventListener('currency:changed', () => {
     console.log('[deposit] Currency changed, re-rendering UI');
     renderUI();
   });
 
-  // стартовый рендер
   renderUI();
   
   console.log('[deposit] Deposit module initialized');
-  
-  // ДОБАВЛЯЕМ: Инжектируем стили для скрытия sheet
-  const hideStyles = `
-    .sheet.sheet--hidden {
-      pointer-events: none !important;
-      opacity: 0 !important;
-      z-index: -1 !important;
-    }
-  `;
-  
-  const styleEl = document.createElement('style');
-  styleEl.textContent = hideStyles;
-  document.head.appendChild(styleEl);
 })();
