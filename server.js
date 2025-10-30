@@ -33,12 +33,7 @@ app.use(express.static(path.join(__dirname, "public"), {
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 // ====== TonConnect manifest ======
-// Если файл public/tonconnect-manifest.json есть — отдадим его как статику.
-// Этот маршрут пригодится, если хочешь генерировать манифест на лету
-// (например, под разные домены).
-app.get("/tonconnect-manifest.json", (req, res, next) => {
-  // Если файл существует в public — отдаст express.static. Иначе сгенерируем.
-  const manifestPath = path.join(__dirname, "public", "tonconnect-manifest.json");
+app.get("/tonconnect-manifest.json", (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.send(JSON.stringify({
     url: process.env.PUBLIC_URL || baseUrlFrom(req),
@@ -62,7 +57,7 @@ app.get("/api/tg/photo/:userId", async (req, res) => {
     const photos = j1?.result?.photos?.[0];
     if (!photos) return res.status(404).send("no photo");
 
-    const fileId = photos[photos.length - 1].file_id; // максимальный размер
+    const fileId = photos[photos.length - 1].file_id;
     const p2 = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
     const j2 = await p2.json();
     const fpath = j2?.result?.file_path;
@@ -80,9 +75,7 @@ app.get("/api/tg/photo/:userId", async (req, res) => {
   }
 });
 
-// ====== DEPOSIT ======
-// Клиент отправляет: { amount, initData }
-// Мы валидируем initData, при успехе шлём уведомление в Telegram и отвечаем ok.
+// ====== DEPOSIT (TON) ======
 app.post("/deposit", async (req, res) => {
   try {
     const { amount, initData } = req.body || {};
@@ -94,14 +87,12 @@ app.post("/deposit", async (req, res) => {
     const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
     if (!check.ok) return res.status(401).json({ ok: false, error: "unauthorized" });
 
-    // user из initData
     let user = null;
     if (check.params.user) {
       try { user = JSON.parse(check.params.user); } catch {}
     }
     const chatId = user?.id;
 
-    // Отправим уведомление в чат (если токен задан и chatId есть)
     if (process.env.BOT_TOKEN && chatId) {
       await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
         method: "POST",
@@ -113,8 +104,6 @@ app.post("/deposit", async (req, res) => {
       }).catch(() => {});
     }
 
-    // Здесь же можно логировать транзакции в БД.
-
     res.json({ ok: true, amount: num, userId: chatId });
   } catch (e) {
     console.error("deposit error:", e);
@@ -122,7 +111,200 @@ app.post("/deposit", async (req, res) => {
   }
 });
 
-// ====== (опционально) простой API старта раунда ======
+// ====== STARS PAYMENT API ======
+// Создание Stars Invoice
+app.post("/api/stars/create-invoice", async (req, res) => {
+  try {
+    const { amount, userId, initData } = req.body;
+
+    console.log('[Stars API] Creating invoice:', { amount, userId });
+
+    // Валидация
+    if (!amount || amount < 1) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid amount. Minimum is 1 Star'
+      });
+    }
+
+    if (!userId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'User ID is required'
+      });
+    }
+
+    // Проверка BOT_TOKEN
+    const BOT_TOKEN = process.env.BOT_TOKEN;
+    if (!BOT_TOKEN) {
+      console.error('[Stars API] Bot token not configured!');
+      return res.status(500).json({
+        ok: false,
+        error: 'Payment system not configured. Please set BOT_TOKEN in .env'
+      });
+    }
+
+    // Опционально: проверка initData
+    if (initData) {
+      const check = verifyInitData(initData, BOT_TOKEN, 300);
+      if (!check.ok) {
+        return res.status(401).json({ ok: false, error: "unauthorized" });
+      }
+    }
+
+    // Генерируем уникальный payload
+    const payload = `stars_${userId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+
+    // Создаём invoice через Telegram Bot API
+    const telegramResponse = await fetch(
+      `https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: `⭐ ${amount} Telegram Stars`,
+          description: `Top up your WildGift balance with ${amount} Stars`,
+          payload: payload,
+          currency: 'XTR', // Telegram Stars currency code
+          prices: [
+            {
+              label: `${amount} Stars`,
+              amount: amount
+            }
+          ]
+        })
+      }
+    );
+
+    const invoiceData = await telegramResponse.json();
+
+    console.log('[Stars API] Telegram response:', invoiceData);
+
+    if (!invoiceData.ok) {
+      const errorMsg = invoiceData.description || 'Failed to create invoice';
+      console.error('[Stars API] Error:', errorMsg);
+      return res.status(500).json({
+        ok: false,
+        error: errorMsg
+      });
+    }
+
+    // Успех
+    res.json({
+      ok: true,
+      invoiceLink: invoiceData.result,
+      invoiceId: payload,
+      amount: amount
+    });
+
+  } catch (error) {
+    console.error('[Stars API] Error creating invoice:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message || 'Internal server error'
+    });
+  }
+});
+
+// Webhook для обработки successful_payment
+app.post("/api/stars/webhook", async (req, res) => {
+  try {
+    const update = req.body;
+
+    console.log('[Stars Webhook] Received update:', JSON.stringify(update, null, 2));
+
+    // Проверяем successful_payment
+    if (update.message?.successful_payment) {
+      const payment = update.message.successful_payment;
+      const userId = update.message.from.id;
+
+      console.log('[Stars Webhook] Successful payment:', {
+        userId,
+        amount: payment.total_amount,
+        payload: payment.invoice_payload,
+        telegramPaymentChargeId: payment.telegram_payment_charge_id
+      });
+
+      // Здесь обновляй баланс пользователя в БД
+      // await updateUserBalance(userId, payment.total_amount);
+
+      // Отправляем подтверждение пользователю
+      if (process.env.BOT_TOKEN) {
+        await fetch(
+          `https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: userId,
+              text: `✅ Payment successful!\n\nYou received ${payment.total_amount} ⭐ Stars`,
+              parse_mode: 'HTML'
+            })
+          }
+        ).catch(err => console.error('[Stars Webhook] Error sending confirmation:', err));
+      }
+
+      res.json({ ok: true });
+    } else {
+      res.json({ ok: true, message: 'Not a payment update' });
+    }
+
+  } catch (error) {
+    console.error('[Stars Webhook] Error processing webhook:', error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Проверка статуса платежа (опционально)
+app.get("/api/stars/payment-status/:invoiceId", async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+
+    // Здесь проверяй статус в БД
+    // const payment = await getPaymentStatus(invoiceId);
+
+    res.json({
+      ok: true,
+      status: 'pending', // или 'completed', 'failed'
+      invoiceId
+    });
+
+  } catch (error) {
+    console.error('[Stars API] Error checking payment status:', error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Deposit notification endpoint (если нужен)
+app.post("/api/deposit-notification", async (req, res) => {
+  try {
+    const { amount, currency, userId, txHash, timestamp } = req.body;
+    
+    console.log('[Deposit] Notification received:', {
+      amount,
+      currency,
+      userId,
+      txHash,
+      timestamp
+    });
+
+    // Здесь обновляй баланс в БД
+    // if (currency === 'stars') {
+    //   await updateUserStarsBalance(userId, amount);
+    // } else if (currency === 'ton') {
+    //   await updateUserTonBalance(userId, amount);
+    // }
+
+    res.json({ ok: true, message: 'Notification received' });
+  } catch (error) {
+    console.error('[Deposit] Error:', error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// ====== Round API (если нужен) ======
 app.get("/api/round/start", (_req, res) => {
   res.json({
     ok: true,
@@ -133,19 +315,43 @@ app.get("/api/round/start", (_req, res) => {
 
 // ====== SPA fallback: все прочие GET отдать index.html ======
 app.get("*", (req, res, next) => {
-  // не перехватываем API/тонконнект
-  if (req.path.startsWith("/api") || req.path === "/tonconnect-manifest.json") return next();
+  if (req.path.startsWith("/api") || req.path === "/tonconnect-manifest.json") {
+    return next();
+  }
   res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// ====== Error handling ======
+app.use((err, req, res, next) => {
+  console.error('[Server] Error:', err);
+  res.status(500).json({
+    ok: false,
+    error: err.message || 'Internal server error'
+  });
 });
 
 // ====== старт ======
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`
+╔════════════════════════════════════════╗
+║   🎮 WildGift Server Running          ║
+║   Port: ${PORT}                           ║
+║   Environment: ${process.env.NODE_ENV || 'development'}      ║
+╚════════════════════════════════════════╝
+  `);
+  
+  // Проверка Bot Token
+  if (!process.env.BOT_TOKEN) {
+    console.warn('⚠️  WARNING: BOT_TOKEN not set in .env');
+    console.warn('   Stars payments will not work!');
+  } else {
+    console.log('✅ BOT_TOKEN configured');
+  }
 });
 
 
-// ========== helpers ==========
+// ========== HELPERS ==========
 function baseUrlFrom(req) {
   const proto = (req.get("x-forwarded-proto") || req.protocol || "https").split(",")[0].trim();
   const host  = req.get("x-forwarded-host") || req.get("host");
