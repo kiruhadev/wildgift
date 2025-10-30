@@ -307,7 +307,7 @@
       }
 
       const starsAmount = parseInt(amount) || 0;
-      const MIN_STARS = 50;
+      const MIN_STARS = 1;
 
       if (starsAmount < MIN_STARS) {
         const msg = `Minimum purchase is ${MIN_STARS} Stars`;
