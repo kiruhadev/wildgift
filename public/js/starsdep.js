@@ -144,7 +144,7 @@
       }
   
       try {
-        const res = await fetch('/api/create-stars-invoice', {
+        const res = await fetch('/api/stars/create-invoice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
