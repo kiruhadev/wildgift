@@ -13,6 +13,13 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
+// Конфигурация колеса (должна совпадать с wheel.js)
+const WHEEL_ORDER = [
+  'Wild Time','1x','3x','Loot Rush','1x','7x','50&50','1x',
+  '3x','11x','1x','3x','Loot Rush','1x','7x','50&50',
+  '1x','3x','1x','11x','3x','1x','7x','50&50'
+];
+
 // --- базовые настройки
 app.set("trust proxy", true);
 app.use(express.json());
@@ -22,7 +29,6 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "public"), {
   extensions: ["html"], // / -> index.html
   setHeaders: (res, filePath) => {
-    // правильный тип для .json в public
     if (filePath.endsWith(".json")) {
       res.setHeader("Content-Type", "application/json; charset=utf-8");
     }
@@ -112,14 +118,12 @@ app.post("/deposit", async (req, res) => {
 });
 
 // ====== STARS PAYMENT API ======
-// Создание Stars Invoice через createInvoiceLink
 app.post("/api/stars/create-invoice", async (req, res) => {
   try {
     const { amount, userId } = req.body;
 
     console.log('[Stars API] Creating invoice:', { amount, userId });
 
-    // Валидация
     if (!amount || amount < 1) {
       return res.status(400).json({
         ok: false,
@@ -143,10 +147,8 @@ app.post("/api/stars/create-invoice", async (req, res) => {
       });
     }
 
-    // Генерируем уникальный payload
     const payload = `stars_${userId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-    // Создаём invoice link через createInvoiceLink
     const telegramResponse = await fetch(
       `https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`,
       {
@@ -156,7 +158,7 @@ app.post("/api/stars/create-invoice", async (req, res) => {
           title: `${amount} Telegram Stars`,
           description: `Top up your WildGift balance`,
           payload: payload,
-          provider_token: '', // Пустой для Stars
+          provider_token: '',
           currency: 'XTR',
           prices: [
             {
@@ -181,7 +183,6 @@ app.post("/api/stars/create-invoice", async (req, res) => {
       });
     }
 
-    // Успех - возвращаем invoice link
     res.json({
       ok: true,
       invoiceLink: invoiceData.result,
@@ -205,14 +206,13 @@ app.post("/api/stars/webhook", async (req, res) => {
 
     console.log('[Stars Webhook] Received update:', JSON.stringify(update, null, 2));
 
-    // Обработка pre_checkout_query (обязательно!)
+    // Обработка pre_checkout_query
     if (update.pre_checkout_query) {
       const query = update.pre_checkout_query;
       const BOT_TOKEN = process.env.BOT_TOKEN;
 
       console.log('[Stars Webhook] Pre-checkout query:', query.id);
 
-      // Отвечаем OK на pre-checkout
       await fetch(
         `https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`,
         {
@@ -240,9 +240,6 @@ app.post("/api/stars/webhook", async (req, res) => {
         telegramPaymentChargeId: payment.telegram_payment_charge_id
       });
 
-      // Здесь обновляй баланс пользователя в БД
-      // await updateUserBalance(userId, payment.total_amount);
-
       // Отправляем подтверждение пользователю
       if (process.env.BOT_TOKEN) {
         await fetch(
@@ -269,6 +266,7 @@ app.post("/api/stars/webhook", async (req, res) => {
     res.status(500).json({ ok: false, error: error.message });
   }
 });
+
 app.post("/api/deposit-notification", async (req, res) => {
   try {
     const { amount, currency, userId, txHash, timestamp } = req.body;
@@ -281,13 +279,6 @@ app.post("/api/deposit-notification", async (req, res) => {
       timestamp
     });
 
-    // Здесь обновляй баланс в БД
-    // if (currency === 'stars') {
-    //   await updateUserStarsBalance(userId, amount);
-    // } else if (currency === 'ton') {
-    //   await updateUserTonBalance(userId, amount);
-    // }
-
     res.json({ ok: true, message: 'Notification received' });
   } catch (error) {
     console.error('[Deposit] Error:', error);
@@ -295,13 +286,78 @@ app.post("/api/deposit-notification", async (req, res) => {
   }
 });
 
-// ====== Round API (если нужен) ======
-app.get("/api/round/start", (_req, res) => {
-  res.json({
-    ok: true,
-    serverSeed: crypto.randomBytes(16).toString("hex"),
-    ts: Date.now()
-  });
+// ====== WHEEL ROUND API - ИСПРАВЛЕНО! ======
+app.get("/api/round/start", (req, res) => {
+  try {
+    // Генерируем случайный индекс сектора
+    const sliceIndex = Math.floor(Math.random() * WHEEL_ORDER.length);
+    
+    // Получаем тип из порядка колеса
+    const type = WHEEL_ORDER[sliceIndex];
+    
+    console.log('[Round API] Generated:', { sliceIndex, type });
+    
+    // Возвращаем правильную структуру
+    res.json({
+      ok: true,
+      sliceIndex: sliceIndex,
+      type: type,
+      serverSeed: crypto.randomBytes(16).toString("hex"),
+      timestamp: Date.now()
+    });
+  } catch (error) {
+    console.error('[Round API] Error:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message || 'Failed to generate round'
+    });
+  }
+});
+
+// ====== Проверка ставок (опционально) ======
+app.post("/api/round/place-bet", async (req, res) => {
+  try {
+    const { bets, initData } = req.body || {};
+    
+    // Проверяем авторизацию
+    const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
+    if (!check.ok) {
+      return res.status(401).json({ ok: false, error: "unauthorized" });
+    }
+
+    let user = null;
+    if (check.params.user) {
+      try { user = JSON.parse(check.params.user); } catch {}
+    }
+    const userId = user?.id;
+
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: "User ID required" });
+    }
+
+    if (!bets || typeof bets !== 'object') {
+      return res.status(400).json({ ok: false, error: "Invalid bets format" });
+    }
+
+    console.log('[Bets] Received:', { userId, bets });
+
+    // Здесь можно добавить валидацию и сохранение ставок в БД
+    // Например, проверить баланс пользователя
+
+    res.json({
+      ok: true,
+      userId,
+      bets,
+      timestamp: Date.now()
+    });
+
+  } catch (error) {
+    console.error('[Bets] Error:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message || 'Failed to place bet'
+    });
+  }
 });
 
 // ====== SPA fallback: все прочие GET отдать index.html ======
@@ -325,11 +381,11 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`
-╔════════════════════════════════════════╗
+╔═══════════════════════════════════════╗
 ║   🎮 WildGift Server Running          ║
 ║   Port: ${PORT}                           ║
 ║   Environment: ${process.env.NODE_ENV || 'development'}      ║
-╚════════════════════════════════════════╝
+╚═══════════════════════════════════════╝
   `);
   
   // Проверка Bot Token
@@ -339,6 +395,9 @@ app.listen(PORT, () => {
   } else {
     console.log('✅ BOT_TOKEN configured');
   }
+  
+  // Проверка конфигурации колеса
+  console.log(`✅ Wheel configured with ${WHEEL_ORDER.length} segments`);
 });
 
 
