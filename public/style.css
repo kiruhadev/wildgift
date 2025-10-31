@@ -11,6 +11,7 @@
         --muted:#99a7bb;
         --accent:#00a6ff;
         --accent-ghost:rgba(0,166,255,.14);
+        --glow-soft:rgba(21,32,51,.6); /* Мягкое свечение как в фоне */
         --danger:#ff4d4f;
         --ok:#27c93f;
       }
@@ -184,9 +185,9 @@
       background:radial-gradient(circle at 50% 40%, #182234 0%, #101723 58%, #0d131c 100%);
       border:1px solid var(--border);
       box-shadow:
-        0 16px 40px rgba(0,0,0,.55),
-        inset 0 0 40px rgba(0,0,0,.35),
-        0 0 18px rgba(0,166,255,.15);
+      0 16px 40px rgba(0,0,0,.55),
+      inset 0 0 40px rgba(0,0,0,.35),
+      0 0 24px rgba(21,32,51,.4);
     }
 
     /* Pointer */
@@ -196,8 +197,18 @@
       left:50%; 
       transform:translateX(-50%);
       font-size:20px; color:var(--accent);
-      text-shadow:0 0 10px rgba(0,166,255,.8), 0 0 18px rgba(0,166,255,.45);
+      text-shadow:0 0 12px rgba(21,32,51,.8), 0 0 20px rgba(21,32,51,.5);
+      animation: pointerPulse 2s ease-in-out infinite;
     }
+
+    @keyframes pointerPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 12px rgba(21,32,51,.7));
+  }
+  50% {
+    filter: drop-shadow(0 0 20px rgba(21,32,51,.9));
+  }
+}
 
 /* ===========================
    УЛУЧШЕНИЯ ДЛЯ КОЛЕСА
@@ -263,9 +274,9 @@
 /* Колесо - улучшенная тень и свечение */
 #wheelCanvas {
   box-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.6),
-    inset 0 0 40px rgba(0, 0, 0, 0.4),
-    0 0 24px rgba(0, 166, 255, 0.2);
+  0 16px 40px rgba(0,0,0,.55),
+  inset 0 0 40px rgba(0,0,0,.35),
+  0 0 24px rgba(21,32,51,.4);
   border: 1px solid rgba(255, 255, 255, 0.08);
   transition: box-shadow 0.3s ease;
 }
@@ -301,9 +312,9 @@
 #countdown {
   background: rgba(0, 17, 34, 0.85);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(0, 166, 255, 0.4);
+  border: 1px solid rgba(21,32,51,.5);
   box-shadow: 
-    0 8px 24px rgba(0, 166, 255, 0.3),
+    0 8px 24px rgba(21,32,51,.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 

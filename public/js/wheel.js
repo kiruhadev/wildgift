@@ -356,10 +356,9 @@ function tick(ts){
 function checkBetsAndShowResult(resultType) {
   const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
   
-  // Если нет ставок - просто показываем что выпало
+  // Если нет ставок - НЕ показываем уведомление
   if (totalBets <= 0) {
-    console.log('No bets placed');
-    showResultMessage(resultType, false, 0, 0);
+    console.log('No bets placed - skipping notification');
     return;
   }
 
@@ -414,74 +413,73 @@ function showResultMessage(typeKey, isWin, betAmount, winAmount) {
   if (isWin) {
     const color = COLORS[typeKey]?.fill || '#00a6ff';
     toast.style.cssText = `
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%) translateY(-100px);
-      z-index: 10000;
-      background: linear-gradient(135deg, ${color}, ${adjustColor(color, -20)});
-      border: 2px solid ${color};
-      border-radius: 20px;
-      padding: 20px 28px;
-      min-width: 300px;
-      max-width: 90%;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 30px ${color}40;
-      backdrop-filter: blur(12px);
-      animation: slideDown 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    `;
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-100px);
+  z-index: 10000;
+  background: rgba(20, 28, 42, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 16px 20px;
+  min-width: 280px;
+  max-width: 90%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: slideDown 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+`;
 
-    toast.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 16px;">
-        <div style="font-size: 48px; animation: bounce 0.6s ease;">${WIN_MESSAGES[typeKey].split(' ')[0]}</div>
-        <div style="flex: 1;">
-          <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 4px;">
-            ${WIN_MESSAGES[typeKey].substring(2)}
-          </div>
-          <div style="font-size: 14px; color: rgba(255,255,255,0.9); margin-bottom: 8px;">
-            Bet: ${betAmount} TON
-          </div>
-          <div style="font-size: 24px; font-weight: 900; color: #ffffff;">
-            +${winAmount.toFixed(2)} TON
-          </div>
-        </div>
+toast.innerHTML = `
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <div style="font-size: 32px;">${WIN_MESSAGES[typeKey].split(' ')[0]}</div>
+    <div style="flex: 1;">
+      <div style="font-size: 14px; font-weight: 700; color: #e7edf7; margin-bottom: 4px;">
+        ${WIN_MESSAGES[typeKey].substring(2)}
       </div>
-    `;
+      <div style="font-size: 12px; color: rgba(231,237,247,0.7); margin-bottom: 6px;">
+        Bet: ${betAmount} TON
+      </div>
+      <div style="font-size: 18px; font-weight: 800; color: #27c93f;">
+        +${winAmount.toFixed(2)} TON
+      </div>
+    </div>
+  </div>
+`;
   } else {
     // Проигрыш
     toast.style.cssText = `
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%) translateY(-100px);
-      z-index: 10000;
-      background: linear-gradient(135deg, #3a3a3a, #2a2a2a);
-      border: 2px solid #555;
-      border-radius: 20px;
-      padding: 20px 28px;
-      min-width: 300px;
-      max-width: 90%;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(12px);
-      animation: slideDown 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    `;
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-100px);
+  z-index: 10000;
+  background: rgba(20, 28, 42, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 16px 20px;
+  min-width: 280px;
+  max-width: 90%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: slideDown 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+`;
 
-    const resultColor = COLORS[typeKey]?.fill || '#888';
-    toast.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 16px;">
-        <div style="font-size: 48px;">😔</div>
-        <div style="flex: 1;">
-          <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 4px;">
-            ${LOSS_MESSAGES.default}
-          </div>
-          <div style="font-size: 14px; color: rgba(255,255,255,0.7); margin-bottom: 8px;">
-            Result: <span style="color: ${resultColor}; font-weight: 700;">${LABELS[typeKey]}</span>
-          </div>
-          <div style="font-size: 20px; font-weight: 700; color: #ff6b6b;">
-            -${betAmount.toFixed(2)} TON
-          </div>
-        </div>
+toast.innerHTML = `
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <div style="font-size: 32px;">😔</div>
+    <div style="flex: 1;">
+      <div style="font-size: 14px; font-weight: 700; color: #e7edf7; margin-bottom: 4px;">
+        ${LOSS_MESSAGES.default}
       </div>
-    `;
+      <div style="font-size: 12px; color: rgba(231,237,247,0.6); margin-bottom: 6px;">
+        Result: <span style="font-weight: 700;">${LABELS[typeKey]}</span>
+      </div>
+      <div style="font-size: 16px; font-weight: 700; color: #ff4d4f;">
+        -${betAmount.toFixed(2)} TON
+      </div>
+    </div>
+  </div>
+`;
   }
 
   // Добавляем стили для анимаций

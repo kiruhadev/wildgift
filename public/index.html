@@ -72,7 +72,7 @@
 </header>
 
     <!-- ===== HISTORY (иконки последних выпадений — добавляй через JS) ===== -->
-    <section class="history" aria-label="Last results">
+    <section class="history wheel-only" aria-label="Last results">
       <div id="historyList" class="history-list">
         <!-- пример элемента истории с иконкой:
         <div class="history-item">
@@ -871,6 +871,20 @@
     font-weight: 600;
     color: #fff;
   }
+
+  /* Показывать историю только на странице wheel */
+.history.wheel-only {
+  display: none;
+}
+
+#wheelPage.page-active ~ .history.wheel-only {
+  display: block;
+}
+
+/* Или проще - показывать только когда активна wheelPage */
+body:has(#wheelPage.page-active) .history.wheel-only {
+  display: block;
+}
 </style>
 
 
