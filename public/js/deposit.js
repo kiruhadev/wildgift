@@ -3,7 +3,7 @@
   // ====== КОНФИГ ======
   const MANIFEST_URL = `${location.origin}/tonconnect-manifest.json`;
   const PROJECT_TON_ADDRESS = "UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J";
-  const MIN_DEPOSIT_TON = 0.5;
+  const MIN_DEPOSIT_TON = 0.1;
   const MIN_DEPOSIT_STARS = 1;
 
   // ====== DOM ======
