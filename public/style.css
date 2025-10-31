@@ -191,24 +191,18 @@
     }
 
     /* Pointer */
-    .pointer, .wheel-pointer{
-      position:absolute; 
-      top:4px; 
-      left:50%; 
-      transform:translateX(-50%);
-      font-size:20px; color:var(--accent);
-      text-shadow:0 0 12px rgba(21,32,51,.8), 0 0 20px rgba(21,32,51,.5);
-      animation: pointerPulse 2s ease-in-out infinite;
-    }
-
-    @keyframes pointerPulse {
-  0%, 100% {
-    filter: drop-shadow(0 0 12px rgba(21,32,51,.7));
-  }
-  50% {
-    filter: drop-shadow(0 0 20px rgba(21,32,51,.9));
-  }
+    .pointer {
+  position:absolute; 
+  top:4px; 
+  left:50%; 
+  transform:translateX(-50%);
+  font-size:20px; 
+  color:#ffd700; /* Золотой цвет */
+  text-shadow:0 0 12px rgba(255,215,0,.6), 0 0 20px rgba(255,215,0,.3);
+  filter: drop-shadow(0 0 8px rgba(255,215,0,.5));
+  will-change: auto;/* Убрал animation чтобы не трясся */
 }
+
 
 /* ===========================
    УЛУЧШЕНИЯ ДЛЯ КОЛЕСА
@@ -288,25 +282,7 @@
     0 0 32px rgba(0, 166, 255, 0.4);
 }
 
-/* Указатель - более заметный */
-.pointer {
-  filter: drop-shadow(0 0 12px rgba(0, 166, 255, 1))
-          drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
-  animation: pointerPulse 2s ease-in-out infinite;
-}
 
-@keyframes pointerPulse {
-  0%, 100% {
-    transform: translateX(-50%) scale(1);
-    filter: drop-shadow(0 0 12px rgba(0, 166, 255, 1))
-            drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
-  }
-  50% {
-    transform: translateX(-50%) scale(1.1);
-    filter: drop-shadow(0 0 20px rgba(0, 166, 255, 1))
-            drop-shadow(0 4px 12px rgba(0, 0, 0, 0.8));
-  }
-}
 
 /* Таймер - улучшенный стиль */
 #countdown {
