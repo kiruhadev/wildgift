@@ -2315,11 +2315,15 @@
         .case-card{ height: 108px; }
       }
 
-            /* ============================================
-   TON DEPOSIT POPUP - Точно по дизайну
+          
+
+
+      /* ============================================
+   DEPOSIT POPUPS - TON & STARS
+   Общие стили для обоих попапов
    ============================================ */
 
-.ton-popup {
+.deposit-popup {
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -2329,12 +2333,12 @@
   padding: 20px;
 }
 
-.ton-popup--open {
+.deposit-popup--open {
   display: flex;
 }
 
 /* Затемнённый фон */
-.ton-popup__backdrop {
+.deposit-popup__backdrop {
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.85);
@@ -2342,132 +2346,207 @@
   animation: fadeIn 0.2s ease;
 }
 
-/* Контент окна */
-.ton-popup__content {
+/* Контент попапа */
+.deposit-popup__content {
   position: relative;
   width: 100%;
   max-width: 400px;
   background: #1e2329;
   border-radius: 24px;
-  padding: 32px 24px;
+  padding: 32px 24px 24px;
   animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   text-align: center;
 }
 
 /* Кнопка закрытия */
-.ton-popup__close {
+.deposit-popup__close {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 16px;
+  right: 16px;
   width: 40px;
   height: 40px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.08);
   border: none;
   color: rgba(255, 255, 255, 0.6);
-  font-size: 28px;
-  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
+  padding: 0;
 }
 
-.ton-popup__close:hover {
+.deposit-popup__close:hover {
   background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.9);
-  transform: rotate(90deg);
+}
+
+.deposit-popup__close svg {
+  width: 20px;
+  height: 20px;
 }
 
 /* Заголовок */
-.ton-popup__title {
+.deposit-popup__title {
   font-size: 20px;
   font-weight: 600;
   color: #ffffff;
-  margin: 0 0 40px 0;
+  margin: 0 0 24px 0;
   padding-right: 40px;
+  text-align: center;
 }
 
-/* Большой баланс по центру */
-.ton-popup__big-balance {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 16px;
-  margin-bottom: 24px;
-  padding: 40px 0;
-}
-
-.ton-popup__big-number {
-  font-size: 80px;
-  font-weight: 700;
-  color: #a0a0a0;
-  line-height: 1;
-  letter-spacing: -2px;
-}
-
-.ton-popup__big-currency {
-  font-size: 48px;
-  font-weight: 700;
-  color: #ffffff;
-  line-height: 1;
-}
-
-/* Баланс кошелька (маленький) */
-.ton-popup__wallet-balance {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  font-size: 15px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.6);
+/* Текущий баланс (большой) */
+.deposit-popup__current-balance {
   margin-bottom: 32px;
 }
 
-.ton-popup__wallet-icon {
-  width: 18px;
-  height: 18px;
+.deposit-popup__balance-big {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 72px;
+  font-weight: 700;
+  color: #a0a0a0;
+  line-height: 1;
+}
+
+.deposit-popup__currency {
+  font-size: 40px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* Поле ввода суммы */
+.deposit-popup__input-group {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.deposit-popup__label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.deposit-popup__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.deposit-popup__input-icon {
+  position: absolute;
+  left: 16px;
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+}
+
+.deposit-popup__input-icon--emoji {
+  font-size: 20px;
+  width: auto;
+  height: auto;
+}
+
+.deposit-popup__input {
+  width: 100%;
+  height: 52px;
+  padding: 0 80px 0 48px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.deposit-popup__input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.deposit-popup__input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.deposit-popup__input-currency {
+  position: absolute;
+  right: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+}
+
+.deposit-popup__hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 6px;
+  text-align: left;
+}
+
+/* Баланс кошелька (маленький) */
+.deposit-popup__wallet-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 24px;
+}
+
+.deposit-popup__wallet-icon {
+  width: 16px;
+  height: 16px;
   color: rgba(255, 255, 255, 0.5);
 }
 
 /* Разделитель */
-.ton-popup__divider {
+.deposit-popup__divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.1);
-  margin: 32px 0;
+  margin: 0 0 20px 0;
 }
 
-/* Кнопка Deposit */
-.ton-popup__deposit-btn {
+/* Кнопка */
+.deposit-popup__button {
   width: 100%;
-  height: 56px;
-  border-radius: 16px;
+  height: 52px;
+  border-radius: 14px;
   border: none;
   background: #ffffff;
   color: #000000;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
 }
 
-.ton-popup__deposit-btn:hover {
+.deposit-popup__button:hover:not(:disabled) {
   background: #f0f0f0;
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.15);
+  box-shadow: 0 6px 16px rgba(255, 255, 255, 0.15);
 }
 
-.ton-popup__deposit-btn:active {
+.deposit-popup__button:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.ton-popup__deposit-btn:disabled {
-  opacity: 0.5;
+.deposit-popup__button:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
   transform: none;
 }
@@ -2481,7 +2560,7 @@
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(30px) scale(0.95);
+    transform: translateY(30px) scale(0.96);
   }
   to {
     opacity: 1;
@@ -2491,62 +2570,122 @@
 
 /* Адаптивность */
 @media (max-width: 420px) {
-  .ton-popup__content {
-    padding: 28px 20px;
-    border-radius: 20px;
+  .deposit-popup__content {
+    padding: 28px 20px 20px;
   }
   
-  .ton-popup__title {
+  .deposit-popup__title {
     font-size: 18px;
-    margin-bottom: 32px;
   }
   
-  .ton-popup__big-number {
-    font-size: 64px;
+  .deposit-popup__balance-big {
+    font-size: 60px;
+    gap: 10px;
   }
   
-  .ton-popup__big-currency {
-    font-size: 40px;
+  .deposit-popup__currency {
+    font-size: 36px;
   }
   
-  .ton-popup__big-balance {
-    padding: 32px 0;
-    margin-bottom: 20px;
-  }
-  
-  .ton-popup__deposit-btn {
-    height: 52px;
+  .deposit-popup__input {
+    height: 48px;
     font-size: 16px;
+  }
+  
+  .deposit-popup__button {
+    height: 48px;
+    font-size: 15px;
   }
 }
 
 @media (max-height: 700px) {
-  .ton-popup__big-balance {
-    padding: 24px 0;
+  .deposit-popup__current-balance {
+    margin-bottom: 24px;
   }
   
-  .ton-popup__big-number {
-    font-size: 60px;
+  .deposit-popup__balance-big {
+    font-size: 56px;
   }
   
-  .ton-popup__big-currency {
-    font-size: 36px;
+  .deposit-popup__currency {
+    font-size: 32px;
   }
 }
 
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
-  .ton-popup__backdrop,
-  .ton-popup__content {
+  .deposit-popup__backdrop,
+  .deposit-popup__content {
     animation: none;
   }
-  
-  .ton-popup__close,
-  .ton-popup__deposit-btn {
-    transition: none;
+}
+/* ============================================
+   STARS ICON STYLES
+   ============================================ */
+
+/* Большая иконка звезды рядом с балансом */
+.deposit-popup__currency-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 12px;
+  filter: drop-shadow(0 2px 8px rgba(255, 215, 0, 0.4));
+  animation: starGlow 2s ease-in-out infinite;
+}
+
+@keyframes starGlow {
+  0%, 100% {
+    filter: drop-shadow(0 2px 8px rgba(255, 215, 0, 0.4));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 4px 16px rgba(255, 215, 0, 0.6));
+    transform: scale(1.05);
   }
 }
-      
+
+/* Иконка в поле ввода */
+.deposit-popup__input-icon--stars {
+  width: 20px;
+  height: 20px;
+  filter: brightness(1.2) saturate(1.3);
+}
+
+/* Маленькая иконка в подсказке */
+.hint-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 2px;
+  filter: brightness(1.1);
+}
+
+/* Адаптация для маленьких экранов */
+@media (max-width: 380px) {
+  .deposit-popup__currency-icon {
+    width: 36px;
+    height: 36px;
+    margin-left: 10px;
+  }
+}
+
+/* Темная тема - усиливаем свечение */
+@media (prefers-color-scheme: dark) {
+  .deposit-popup__currency-icon {
+    filter: drop-shadow(0 2px 12px rgba(255, 215, 0, 0.5));
+  }
+  
+  @keyframes starGlow {
+    0%, 100% {
+      filter: drop-shadow(0 2px 12px rgba(255, 215, 0, 0.5));
+    }
+    50% {
+      filter: drop-shadow(0 4px 20px rgba(255, 215, 0, 0.7));
+    }
+  }
+}
       
       
       

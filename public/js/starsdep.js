@@ -1,296 +1,260 @@
-// public/js/starsdep.js - Telegram Stars Top-Up Module
+// public/js/starsdep.js - Stars Purchase Module (WORKING VERSION)
 (() => {
-    console.log('[STARS] ⭐ Initializing Stars top-up module');
+    console.log('[STARS] ⭐ Starting Stars module');
   
     // ====== КОНФИГ ======
     const MIN_STARS = 1;
   
     // ====== DOM ======
-    const sheet = document.getElementById("starsDepositSheet");
-    if (!sheet) {
-      console.warn('[STARS] ⚠️ starsDepositSheet not found in DOM');
+    const starsPill = document.getElementById("starsPill");
+    const starsAmount = document.getElementById("starsAmount");
+    
+    const popup = document.getElementById("starsDepositPopup");
+    if (!popup) {
+      console.error('[STARS] ❌ starsDepositPopup not found!');
       return;
     }
   
-    const backdrop = sheet.querySelector(".sheet__backdrop");
-    const btnClose = document.getElementById("starsDepClose");
-    const amountInput = document.getElementById("starsDepAmount");
-    const btnBuy = document.getElementById("btnBuyStarsNow");
-    const starsPill = document.getElementById("starsPill");
+    const backdrop = popup.querySelector(".deposit-popup__backdrop");
+    const btnClose = document.getElementById("starsPopupClose");
+    const balanceBig = document.getElementById("starsBalanceBig");
+    const amountInput = document.getElementById("starsAmountInput");
+    const btnBuy = document.getElementById("btnBuyStars");
   
-    // ====== HELPERS ======
+    // ====== TELEGRAM ======
     const tg = window.Telegram?.WebApp;
     const tgUserId = tg?.initDataUnsafe?.user?.id || "guest";
     const initData = tg?.initData || "";
   
-    function openSheet() {
-      console.log('[STARS] 📂 Opening sheet');
-      sheet?.classList.add("sheet--open");
-      renderUI();
-      if (tg?.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred('light');
-      }
+    if (!tg?.openInvoice) {
+      console.warn('[STARS] ⚠️ openInvoice not available (not in Telegram)');
     }
   
-    function closeSheet() {
-      sheet?.classList.remove("sheet--open");
+    // ====== СОСТОЯНИЕ ======
+    let platformBalance = 0;
+  
+    // ====== POPUP ======
+    function openPopup() {
+      console.log('[STARS] 📂 Open popup');
+      popup.classList.add('deposit-popup--open');
+      updateUI();
+      if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
     }
   
-    backdrop?.addEventListener("click", closeSheet);
-    btnClose?.addEventListener("click", closeSheet);
+    function closePopup() {
+      popup.classList.remove('deposit-popup--open');
+    }
   
-    amountInput?.addEventListener("input", () => {
+    backdrop?.addEventListener('click', closePopup);
+    btnClose?.addEventListener('click', closePopup);
+    starsPill?.addEventListener('click', (e) => { e.preventDefault(); openPopup(); });
+  
+    // ====== INPUT ======
+    amountInput?.addEventListener('input', () => {
       const caret = amountInput.selectionStart;
-      // Только целые числа для Stars
       amountInput.value = amountInput.value.replace(/[^0-9]/g, "");
       try { amountInput.setSelectionRange(caret, caret); } catch {}
-      renderUI();
+      updateUI();
     });
   
-    // ====== КЛИК НА STARS PILL ======
-    starsPill?.addEventListener("click", (e) => {
-      e.preventDefault();
-      console.log('[STARS] 🔘 Stars pill clicked');
-      openSheet();
-    });
+    // ====== UI ======
+    function updateUI() {
+      const amount = parseInt(amountInput?.value) || 0;
+      const valid = amount >= MIN_STARS;
   
-    // ====== ОТПРАВКА УВЕДОМЛЕНИЯ В БОТ ======
-    async function notifyBot(amount, invoiceId = null) {
-      try {
-        const response = await fetch("/api/deposit-notification", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            amount,
-            currency: 'stars',
-            initData,
-            userId: tgUserId,
-            invoiceId,
-            timestamp: Date.now()
-          })
-        });
+      console.log('[STARS] UI:', { amount, valid });
   
-        if (response.ok) {
-          console.log('[STARS] ✅ Bot notified');
-        } else {
-          console.warn('[STARS] ⚠️ Bot notification failed');
-        }
-      } catch (error) {
-        console.error('[STARS] ❌ Bot notification error:', error);
-      }
+      if (btnBuy) btnBuy.disabled = !valid;
     }
   
-    // ====== СОЗДАНИЕ STARS INVOICE ======
-    async function createStarsInvoice(amount) {
-      console.log('[STARS] 💫 Creating invoice for', amount, 'Stars');
+    // ====== UPDATE BALANCE ======
+    function updateBalance(balance) {
+      platformBalance = balance;
+      if (starsAmount) starsAmount.textContent = Math.floor(balance);
+      if (balanceBig) balanceBig.textContent = Math.floor(balance);
+      console.log('[STARS] 💰 Balance:', balance);
+    }
+  
+    // ====== CREATE INVOICE ======
+    async function createInvoice(amount) {
+      console.log('[STARS] 💫 Creating invoice:', amount);
   
       try {
-        const response = await fetch('/api/create-stars-invoice', {
+        const res = await fetch('/api/create-stars-invoice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount,
-            userId: tgUserId,
-            initData
-          })
+          body: JSON.stringify({ amount, userId: tgUserId, initData })
         });
   
-        console.log('[STARS] Response status:', response.status);
-  
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[STARS] Server error:', errorText);
-          throw new Error(`Server returned ${response.status}: ${errorText}`);
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('[STARS] Server error:', text);
+          throw new Error(`Server error: ${res.status}`);
         }
   
-        const data = await response.json();
+        const data = await res.json();
         console.log('[STARS] Invoice data:', data);
   
         if (!data.ok || !data.invoiceLink) {
-          throw new Error(data.error || 'Invalid invoice response');
+          throw new Error(data.error || 'Invalid response');
         }
   
         return data;
   
-      } catch (error) {
-        console.error('[STARS] ❌ Error creating invoice:', error);
-        throw error;
+      } catch (err) {
+        console.error('[STARS] ❌ Invoice error:', err);
+        throw err;
       }
     }
   
-    // ====== ОБРАБОТКА STARS PAYMENT ======
-    async function processStarsPayment(amount) {
-      // Проверка доступности tg.openInvoice
-      if (!tg?.openInvoice) {
-        console.error('[STARS] ❌ openInvoice not available');
-        const msg = 'Stars payment is only available in Telegram Mini App';
-        if (tg?.showAlert) {
-          tg.showAlert(msg);
-        } else {
-          alert(msg);
-        }
-        return false;
-      }
-  
-      try {
-        console.log('[STARS] 💳 Processing payment for', amount, 'Stars');
-  
-        // Создаем invoice на сервере
-        const invoiceData = await createStarsInvoice(amount);
-  
-        console.log('[STARS] 🎫 Opening invoice:', invoiceData.invoiceLink);
-  
-        // Открываем invoice в Telegram
-        tg.openInvoice(invoiceData.invoiceLink, async (status) => {
-          console.log('[STARS] 📋 Invoice status:', status);
-  
-          if (status === 'paid') {
-            console.log('[STARS] ✅ Payment successful!');
-  
-            // Уведомляем бот
-            await notifyBot(amount, invoiceData.invoiceId);
-  
-            // Показываем успешное сообщение
-            if (tg?.showPopup) {
-              tg.showPopup({
-                title: '✅ Payment Successful',
-                message: `You've topped up ${amount} ⭐ Stars!`,
-                buttons: [{ type: 'ok' }]
-              });
-            } else if (tg?.showAlert) {
-              tg.showAlert(`✅ ${amount} ⭐ Stars added!`);
-            }
-  
-            if (tg?.HapticFeedback) {
-              tg.HapticFeedback.notificationOccurred('success');
-            }
-  
-            // Обновляем баланс
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('balance:update', {
-                detail: { stars: amount }
-              }));
-            }, 1000);
-  
-            // Закрываем sheet
-            setTimeout(() => {
-              if (amountInput) amountInput.value = '';
-              closeSheet();
-            }, 1500);
-  
-          } else if (status === 'cancelled') {
-            console.log('[STARS] ⚠️ Payment cancelled by user');
-  
-            if (tg?.HapticFeedback) {
-              tg.HapticFeedback.notificationOccurred('warning');
-            }
-  
-          } else if (status === 'failed') {
-            console.error('[STARS] ❌ Payment failed');
-  
-            if (tg?.showAlert) {
-              tg.showAlert('Payment failed. Please try again.');
-            }
-  
-            if (tg?.HapticFeedback) {
-              tg.HapticFeedback.notificationOccurred('error');
-            }
-          }
-        });
-  
-        return true;
-  
-      } catch (error) {
-        console.error('[STARS] ❌ Payment error:', error);
-  
-        let errorMsg = 'Failed to process payment';
-        if (error.message.includes('404')) {
-          errorMsg = 'Server endpoint not found. Please check API configuration.';
-        } else if (error.message.includes('500')) {
-          errorMsg = 'Server error. Please try again later.';
-        } else if (error.message) {
-          errorMsg = error.message;
-        }
-  
-        if (tg?.showAlert) {
-          tg.showAlert(errorMsg);
-        } else {
-          alert(errorMsg);
-        }
-  
-        if (tg?.HapticFeedback) {
-          tg.HapticFeedback.notificationOccurred('error');
-        }
-  
-        return false;
-      }
-    }
-  
-    // ====== ПОКУПКА STARS ======
-    btnBuy?.addEventListener("click", async (e) => {
+    // ====== BUY STARS ======
+    btnBuy?.addEventListener('click', async (e) => {
       e.preventDefault();
-      e.stopPropagation();
   
       const amount = parseInt(amountInput?.value) || 0;
-  
-      console.log('[STARS] 🛒 Buy button clicked. Amount:', amount);
-  
-      // Проверка минимальной суммы
       if (amount < MIN_STARS) {
-        const msg = `Minimum purchase is ${MIN_STARS} ⭐`;
-        console.warn('[STARS]', msg);
+        if (tg?.showAlert) tg.showAlert(`Minimum: ${MIN_STARS} ⭐`);
+        return;
+      }
+  
+      if (!tg?.openInvoice) {
         if (tg?.showAlert) {
-          tg.showAlert(msg);
+          tg.showAlert('Stars payment only works in Telegram app');
         } else {
-          alert(msg);
+          alert('Please open in Telegram');
         }
         return;
       }
   
-      const old = btnBuy.textContent;
+      console.log('[STARS] 🛒 Buy:', amount);
+      if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+  
+      const oldText = btnBuy.textContent;
       btnBuy.disabled = true;
-      btnBuy.textContent = "Opening payment...";
+      btnBuy.textContent = 'Creating invoice...';
   
-      if (tg?.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred('medium');
-      }
+      try {
+        // Create invoice
+        const invoiceData = await createInvoice(amount);
+        
+        btnBuy.textContent = 'Opening payment...';
+        console.log('[STARS] 🎫 Opening invoice:', invoiceData.invoiceLink);
   
-      const success = await processStarsPayment(amount);
+        // Open invoice
+        tg.openInvoice(invoiceData.invoiceLink, (status) => {
+          console.log('[STARS] 📋 Status:', status);
   
-      if (!success) {
-        // Возвращаем кнопку в исходное состояние при ошибке
-        btnBuy.textContent = old || "Buy Stars";
+          if (status === 'paid') {
+            console.log('[STARS] ✅ Paid!');
+  
+            // Notify server
+            fetch('/api/deposit-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                amount, currency: 'stars', userId: tgUserId, initData,
+                invoiceId: invoiceData.invoiceId, timestamp: Date.now()
+              })
+            }).catch(() => {});
+  
+            if (tg?.showPopup) {
+              tg.showPopup({
+                title: '✅ Success',
+                message: `Purchased ${amount} ⭐ Stars!`,
+                buttons: [{ type: 'ok' }]
+              });
+            }
+  
+            if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+  
+            updateBalance(platformBalance + amount);
+  
+            setTimeout(() => {
+              closePopup();
+              if (amountInput) amountInput.value = '';
+              btnBuy.textContent = oldText;
+              btnBuy.disabled = false;
+            }, 1500);
+  
+          } else if (status === 'cancelled') {
+            console.log('[STARS] ⚠️ Cancelled');
+            if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning');
+            btnBuy.textContent = oldText;
+            btnBuy.disabled = false;
+  
+          } else if (status === 'failed') {
+            console.error('[STARS] ❌ Failed');
+            if (tg?.showAlert) tg.showAlert('Payment failed');
+            if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+            btnBuy.textContent = oldText;
+            btnBuy.disabled = false;
+          }
+        });
+  
+      } catch (err) {
+        console.error('[STARS] ❌ Error:', err);
+  
+        let msg = 'Failed to process payment';
+        if (err.message.includes('404')) {
+          msg = 'Server not configured. Check API endpoint.';
+        } else if (err.message.includes('500')) {
+          msg = 'Server error. Try again later.';
+        } else if (err.message) {
+          msg = err.message;
+        }
+  
+        if (tg?.showAlert) tg.showAlert(msg);
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+  
+        btnBuy.textContent = oldText;
         btnBuy.disabled = false;
-      } else {
-        // При успехе кнопка будет восстановлена после закрытия invoice
-        setTimeout(() => {
-          btnBuy.textContent = old || "Buy Stars";
-          btnBuy.disabled = false;
-        }, 2000);
       }
     });
   
-    // ====== UI СОСТОЯНИЕ ======
-    function renderUI() {
-      const amount = parseInt(amountInput?.value) || 0;
-  
-      console.log('[STARS] 🎨 renderUI: amount=', amount);
-  
-      // Кнопка активна только если сумма >= минимума
-      if (btnBuy) {
-        btnBuy.disabled = amount < MIN_STARS;
-      }
+    // ====== LOAD BALANCE ======
+    async function loadBalance() {
+      try {
+        const res = await fetch(`/api/balance?userId=${tgUserId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.stars !== undefined) updateBalance(data.stars);
+        }
+      } catch {}
     }
   
-    // Первичная инициализация
-    renderUI();
+    // ====== EVENTS ======
+    window.addEventListener('balance:update', (e) => {
+      if (e.detail?.stars !== undefined) updateBalance(e.detail.stars);
+    });
   
-    console.log('[STARS] ✅ Stars top-up module initialized');
+    // ====== INIT ======
+    updateUI();
+    loadBalance();
+    console.log('[STARS] ✅ Ready');
   
-    // Экспорт для использования в других модулях
+    // ====== EXPORT ======
     window.WTStarsDeposit = {
-      openSheet,
-      closeSheet,
+      open: openPopup,
+      close: closePopup,
+      updateBalance,
       isAvailable: () => !!tg?.openInvoice
     };
   })();
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  

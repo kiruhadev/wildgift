@@ -1,6 +1,6 @@
 /**
  * switch.js - Currency Switch System (TON / Telegram Stars)
- * ИСПРАВЛЕННАЯ ВЕРСИЯ - правильная обработка покупки Stars
+ * ИСПРАВЛЕННАЯ ВЕРСИЯ - гарантированное переключение иконок
  */
 
 (function() {
@@ -18,18 +18,30 @@
 
   // ================== INIT ==================
   function init() {
-    console.log('[Switch] Initializing currency system...');
+    console.log('[Switch] 🚀 Initializing currency system...');
     
     loadCurrency();
-    initUI();
-    attachEventListeners();
-    updateBalanceDisplay();
     
-    console.log('[Switch] Currency system ready. Current:', currentCurrency);
+    // Ждем загрузки DOM
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        initUI();
+        attachEventListeners();
+        updateBalanceDisplay();
+      });
+    } else {
+      initUI();
+      attachEventListeners();
+      updateBalanceDisplay();
+    }
+    
+    console.log('[Switch] ✅ Currency system ready. Current:', currentCurrency);
   }
 
   // ================== UI SETUP ==================
   function initUI() {
+    console.log('[Switch] 🎨 Initializing UI...');
+    
     const currencyBtns = document.querySelectorAll('.curr-btn');
     currencyBtns.forEach(btn => {
       const currency = btn.dataset.currency;
@@ -39,6 +51,11 @@
         btn.classList.remove('curr-btn--active');
       }
     });
+    
+    // КРИТИЧНО: Обновляем иконку
+    updateTopbarIcon();
+    
+    console.log('[Switch] ✅ UI initialized');
   }
 
   // ================== EVENT LISTENERS ==================
@@ -50,7 +67,7 @@
         e.preventDefault();
         e.stopPropagation();
         const currency = btn.dataset.currency;
-        console.log('[Switch] Currency button clicked:', currency);
+        console.log('[Switch] 🔘 Currency button clicked:', currency);
         switchCurrency(currency);
       });
       
@@ -59,21 +76,13 @@
       btn.style.webkitTapHighlightColor = 'transparent';
     });
 
-    // Кнопка депозита в topbar
+    // Кнопка баланса в topbar - открывает соответствующий попап
     const tonPill = document.getElementById('tonPill');
     if (tonPill) {
-      tonPill.addEventListener('click', openDepositSheet);
-    }
-
-    // КРИТИЧНО: Обработчик кнопки Deposit/Buy Stars
-    const btnDeposit = document.getElementById('btnDepositNow');
-    if (btnDeposit) {
-      // Удаляем все предыдущие обработчики
-      const newBtn = btnDeposit.cloneNode(true);
-      btnDeposit.parentNode.replaceChild(newBtn, btnDeposit);
-      
-      // Добавляем наш обработчик с capture=true
-      newBtn.addEventListener('click', handleDepositClick, true);
+      tonPill.addEventListener('click', (e) => {
+        e.preventDefault();
+        openDepositPopup();
+      });
     }
 
     // Слушаем события баланса от других модулей
@@ -84,27 +93,52 @@
     });
   }
 
-  // ================== DEPOSIT BUTTON HANDLER ==================
-  function handleDepositClick(e) {
-    console.log('[Switch] Deposit button clicked. Current currency:', currentCurrency);
+  // ================== OPEN POPUP ==================
+  function openDepositPopup() {
+    console.log('[Switch] 📂 Opening deposit popup for:', currentCurrency);
     
-    if (currentCurrency === 'stars') {
-      // Для Stars - обрабатываем сами и ОСТАНАВЛИВАЕМ propagation
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
+    closeAllPopups();
+    
+    setTimeout(() => {
+      if (currentCurrency === 'ton') {
+        if (window.WTTonDeposit?.open) {
+          window.WTTonDeposit.open();
+        } else {
+          console.error('[Switch] TON module not loaded!');
+        }
+      } else {
+        if (window.WTStarsDeposit?.open) {
+          window.WTStarsDeposit.open();
+        } else {
+          console.error('[Switch] Stars module not loaded!');
+        }
+      }
       
-      const input = document.getElementById('depAmount');
-      const amount = parseInt(input?.value) || 0;
-      
-      console.log('[Switch] Handling Stars purchase, amount:', amount);
-      buyStarsViaTelegram(amount);
-      
-      return false;
+      if (tg?.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred('light');
+      }
+    }, 50);
+  }
+  
+  function closeAllPopups() {
+    const tonPopup = document.getElementById('tonDepositPopup');
+    const starsPopup = document.getElementById('starsDepositPopup');
+    
+    let closed = [];
+    
+    if (tonPopup?.classList.contains('deposit-popup--open')) {
+      tonPopup.classList.remove('deposit-popup--open');
+      closed.push('TON');
     }
     
-    // Для TON - пропускаем дальше в deposit.js
-    console.log('[Switch] TON mode - letting deposit.js handle it');
+    if (starsPopup?.classList.contains('deposit-popup--open')) {
+      starsPopup.classList.remove('deposit-popup--open');
+      closed.push('Stars');
+    }
+    
+    if (closed.length > 0) {
+      console.log('[Switch] 🔒 Closed popups:', closed.join(', '));
+    }
   }
 
   // ================== CURRENCY SWITCHING ==================
@@ -114,7 +148,10 @@
       return;
     }
     
-    console.log(`[Switch] Switching from ${currentCurrency} to ${currency}`);
+    console.log(`[Switch] 🔄 Switching from ${currentCurrency} to ${currency}`);
+    
+    closeAllPopups();
+    
     currentCurrency = currency;
     
     saveCurrency();
@@ -132,6 +169,8 @@
   }
 
   function updateCurrencyUI() {
+    console.log('[Switch] 🎨 Updating UI for currency:', currentCurrency);
+    
     // Обновляем кнопки переключателя
     const currencyBtns = document.querySelectorAll('.curr-btn');
     currencyBtns.forEach(btn => {
@@ -143,21 +182,42 @@
       }
     });
 
-    // Обновляем иконку в topbar
-    const tonPillIcon = document.querySelector('.pill--ton .pill-icon');
-    if (tonPillIcon) {
-      tonPillIcon.src = currentCurrency === 'ton' 
-        ? '/icons/ton.svg' 
-        : '/icons/stars.svg';
+    // КРИТИЧНО: Обновляем иконку
+    updateTopbarIcon();
+  }
+
+  function updateTopbarIcon() {
+    const pillIcon = document.getElementById('pillCurrencyIcon');
+    
+    if (!pillIcon) {
+      console.error('[Switch] ❌ pillCurrencyIcon NOT FOUND in DOM!');
+      console.error('[Switch] Available elements:', {
+        tonPill: !!document.getElementById('tonPill'),
+        tonAmount: !!document.getElementById('tonAmount'),
+        userPill: !!document.getElementById('userPill')
+      });
+      return;
     }
 
-    // Обновляем текст в deposit sheet
-    updateDepositSheetUI();
+    const iconPath = currentCurrency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+    
+    console.log('[Switch] 🎨 Changing icon from', pillIcon.src, 'to', iconPath);
+    
+    // Плавная смена с анимацией
+    pillIcon.style.opacity = '0';
+    pillIcon.style.transform = 'scale(0.8) rotate(-15deg)';
+    
+    setTimeout(() => {
+      pillIcon.src = iconPath;
+      pillIcon.style.opacity = '1';
+      pillIcon.style.transform = 'scale(1) rotate(0deg)';
+      console.log('[Switch] ✅ Icon updated! Current src:', pillIcon.src);
+    }, 150);
   }
 
   // ================== BALANCE MANAGEMENT ==================
   function updateBalance(balances) {
-    console.log('[Switch] Updating balance:', balances);
+    console.log('[Switch] 💰 Updating balance:', balances);
     
     if (balances.ton !== undefined) {
       userBalance.ton = parseFloat(balances.ton) || 0;
@@ -167,6 +227,14 @@
     }
     
     updateBalanceDisplay(true);
+    
+    // Обновляем балансы в модулях
+    if (balances.ton !== undefined && window.WTTonDeposit?.updateBalance) {
+      window.WTTonDeposit.updateBalance(balances.ton);
+    }
+    if (balances.stars !== undefined && window.WTStarsDeposit?.updateBalance) {
+      window.WTStarsDeposit.updateBalance(balances.stars);
+    }
   }
 
   function updateBalanceDisplay(animate = false) {
@@ -227,235 +295,13 @@
     return amount.toString();
   }
 
-  // ================== DEPOSIT SHEET ==================
-  function openDepositSheet() {
-    const sheet = document.getElementById('depositSheet');
-    if (!sheet) return;
-
-    console.log('[Switch] Opening deposit sheet for currency:', currentCurrency);
-    
-    updateDepositSheetUI();
-    sheet.classList.add('sheet--open');
-    
-    const tonPill = document.querySelector('.pill--ton');
-    if (tonPill) {
-      tonPill.classList.add('balance-flash');
-      setTimeout(() => {
-        tonPill.classList.remove('balance-flash');
-      }, 600);
-    }
-    
-    if (tg?.HapticFeedback) {
-      tg.HapticFeedback.impactOccurred('light');
-    }
-  }
-
-  function updateDepositSheetUI() {
-    const title = document.querySelector('.sheet__title');
-    const subtitle = document.querySelector('.sheet__sub');
-    const inputIcon = document.querySelector('.dep-input__icon');
-    const input = document.getElementById('depAmount');
-    const btnConnect = document.getElementById('btnConnectWallet');
-    const btnDeposit = document.getElementById('btnDepositNow');
-    const depActions = document.querySelector('.dep-actions');
-
-    if (currentCurrency === 'ton') {
-      // TON MODE
-      if (title) title.textContent = 'Deposit TON';
-      if (subtitle) subtitle.innerHTML = 'Minimum deposit <b>0.5 TON</b>';
-      if (inputIcon) inputIcon.src = '/icons/ton.svg';
-      if (input) {
-        input.placeholder = '0 TON';
-        input.value = '';
-        input.inputMode = 'decimal';
-      }
-      if (btnConnect) {
-        btnConnect.style.display = '';
-        btnConnect.innerHTML = '<span class="btn__icons"><img src="/icons/telegram.svg" alt=""></span> Connect wallet';
-      }
-      if (btnDeposit) {
-        btnDeposit.textContent = 'Deposit Now';
-      }
-      if (depActions) depActions.classList.remove('single');
-    } else {
-      // STARS MODE
-      if (title) title.textContent = 'Buy Telegram Stars';
-      if (subtitle) subtitle.innerHTML = 'Minimum purchase <b>1 ⭐</b>';
-      if (inputIcon) inputIcon.src = '/icons/stars.svg';
-      if (input) {
-        input.placeholder = '0 Stars';
-        input.value = '';
-        input.inputMode = 'numeric';
-      }
-      if (btnConnect) {
-        btnConnect.style.display = 'none';
-      }
-      if (btnDeposit) {
-        btnDeposit.textContent = 'Buy Stars';
-        btnDeposit.disabled = false;
-      }
-      if (depActions) depActions.classList.add('single');
-    }
-  }
-
-  // ================== TELEGRAM STARS PAYMENT ==================
-  async function buyStarsViaTelegram(amount) {
-    console.log('[Switch] buyStarsViaTelegram called with amount:', amount);
-    
-    if (!tg) {
-      console.error('[Switch] Telegram WebApp is not available');
-      alert('This feature is only available in Telegram');
-      return;
-    }
-
-    const starsAmount = parseInt(amount) || 0;
-    const MIN_STARS = 1;
-
-    if (starsAmount < MIN_STARS) {
-      const msg = `Minimum purchase is ${MIN_STARS} Star${MIN_STARS > 1 ? 's' : ''}`;
-      console.warn('[Switch]', msg);
-      if (tg.showAlert) {
-        tg.showAlert(msg);
-      } else {
-        alert(msg);
-      }
-      if (tg.HapticFeedback) {
-        tg.HapticFeedback.notificationOccurred('warning');
-      }
-      return;
-    }
-
-    try {
-      console.log('[Switch] Creating Stars invoice for amount:', starsAmount);
-
-      // Блокируем кнопку
-      const btnDeposit = document.getElementById('btnDepositNow');
-      const originalText = btnDeposit?.textContent;
-      if (btnDeposit) {
-        btnDeposit.disabled = true;
-        btnDeposit.textContent = 'Opening payment...';
-      }
-
-      if (tg?.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred('medium');
-      }
-
-      // Запрос на создание invoice
-      const response = await fetch('/api/stars/create-invoice', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount: starsAmount,
-          userId: tg.initDataUnsafe?.user?.id
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create invoice');
-      }
-
-      const data = await response.json();
-      console.log('[Switch] Invoice data:', data);
-
-      if (!data.ok || !data.invoiceLink) {
-        throw new Error(data.error || 'Invalid invoice response');
-      }
-
-      // Закрываем deposit sheet
-      const sheet = document.getElementById('depositSheet');
-      sheet?.classList.remove('sheet--open');
-
-      // Открываем invoice через Telegram WebApp API
-      console.log('[Switch] Opening invoice:', data.invoiceLink);
-      
-      tg.openInvoice(data.invoiceLink, (status) => {
-        console.log('[Switch] Payment status:', status);
-        
-        // Разблокируем кнопку
-        if (btnDeposit) {
-          btnDeposit.disabled = false;
-          btnDeposit.textContent = originalText || 'Buy Stars';
-        }
-        
-        if (status === 'paid') {
-          console.log('[Switch] Payment successful!');
-          
-          if (tg.showPopup) {
-            tg.showPopup({
-              title: '✅ Payment Successful',
-              message: `You purchased ${starsAmount} Star${starsAmount > 1 ? 's' : ''}!`,
-              buttons: [{ type: 'ok' }]
-            });
-          } else if (tg.showAlert) {
-            tg.showAlert(`Success! You got ${starsAmount} Star${starsAmount > 1 ? 's' : ''}`);
-          }
-          
-          if (tg.HapticFeedback) {
-            tg.HapticFeedback.notificationOccurred('success');
-          }
-          
-          // Обновляем баланс
-          userBalance.stars += starsAmount;
-          updateBalanceDisplay(true);
-          
-          // Отправляем событие
-          window.dispatchEvent(new CustomEvent('stars:purchased', {
-            detail: { amount: starsAmount }
-          }));
-          
-        } else if (status === 'cancelled') {
-          console.log('[Switch] Payment cancelled');
-          
-          if (tg.HapticFeedback) {
-            tg.HapticFeedback.notificationOccurred('warning');
-          }
-          
-        } else if (status === 'failed') {
-          console.error('[Switch] Payment failed');
-          
-          if (tg.showAlert) {
-            tg.showAlert('Payment failed. Please try again.');
-          }
-          
-          if (tg.HapticFeedback) {
-            tg.HapticFeedback.notificationOccurred('error');
-          }
-        }
-      });
-
-    } catch (error) {
-      console.error('[Switch] Error buying stars:', error);
-      
-      // Разблокируем кнопку при ошибке
-      const btnDeposit = document.getElementById('btnDepositNow');
-      if (btnDeposit) {
-        btnDeposit.disabled = false;
-        btnDeposit.textContent = 'Buy Stars';
-      }
-      
-      const errorMsg = error.message || 'Failed to create payment. Please try again.';
-      if (tg.showAlert) {
-        tg.showAlert(errorMsg);
-      } else {
-        alert(errorMsg);
-      }
-      
-      if (tg.HapticFeedback) {
-        tg.HapticFeedback.notificationOccurred('error');
-      }
-    }
-  }
-
   // ================== STORAGE ==================
   function loadCurrency() {
     try {
       const saved = localStorage.getItem('wt-currency');
       if (saved && (saved === 'ton' || saved === 'stars')) {
         currentCurrency = saved;
-        console.log('[Switch] Loaded currency from storage:', currentCurrency);
+        console.log('[Switch] 📥 Loaded currency from storage:', currentCurrency);
       }
     } catch (e) {
       console.warn('[Switch] Failed to load currency:', e);
@@ -465,7 +311,7 @@
   function saveCurrency() {
     try {
       localStorage.setItem('wt-currency', currentCurrency);
-      console.log('[Switch] Saved currency to storage:', currentCurrency);
+      console.log('[Switch] 💾 Saved currency to storage:', currentCurrency);
     } catch (e) {
       console.warn('[Switch] Failed to save currency:', e);
     }
@@ -481,8 +327,36 @@
       userBalance[currency] = currency === 'ton' ? parseFloat(amount) : parseInt(amount);
       updateBalanceDisplay(true);
     },
-    buyStars: buyStarsViaTelegram,
-    formatStars: formatStars
+    formatStars: formatStars,
+    openPopup: openDepositPopup,
+    closeAllPopups: closeAllPopups,
+    
+    // Debug helpers
+    debug: {
+      forceUpdateIcon: () => {
+        console.log('[Switch] 🔧 Force updating icon...');
+        updateTopbarIcon();
+      },
+      testSwitch: (currency) => {
+        console.log('[Switch] 🧪 Testing switch to:', currency);
+        switchCurrency(currency);
+      },
+      checkIcon: () => {
+        const icon = document.getElementById('pillCurrencyIcon');
+        console.log('[Switch] 🔍 Icon check:', {
+          exists: !!icon,
+          src: icon?.src,
+          visible: icon?.offsetParent !== null,
+          currentCurrency: currentCurrency
+        });
+        return icon;
+      },
+      getState: () => ({
+        currency: currentCurrency,
+        balance: userBalance,
+        iconSrc: document.getElementById('pillCurrencyIcon')?.src
+      })
+    }
   };
 
   // ================== INJECT STYLES ==================
@@ -509,6 +383,12 @@
       60% { transform: scale3d(0.98, 1.02, 1); }
       70% { transform: scale3d(1.02, 0.98, 1); }
       80%, 100% { transform: scale3d(1, 1, 1); }
+    }
+
+    /* Плавная смена иконки с анимацией */
+    #pillCurrencyIcon {
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      will-change: opacity, transform;
     }
 
     /* Currency switcher */
@@ -630,26 +510,6 @@
         box-shadow: 0 0 0 2px rgba(0,166,255,.4) inset;
       }
     }
-
-    /* Deposit actions layout */
-    .dep-actions {
-      display: flex;
-      gap: 12px;
-      margin-top: 24px;
-    }
-
-    .dep-actions.single {
-      justify-content: center;
-    }
-
-    .dep-actions.single .btn {
-      flex: 0 0 auto;
-      min-width: 200px;
-    }
-
-    .dep-actions:not(.single) .btn {
-      flex: 1;
-    }
   `;
 
   const styleSheet = document.createElement('style');
@@ -657,10 +517,27 @@
   document.head.appendChild(styleSheet);
 
   // ================== AUTO-INIT ==================
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  init();
+
+  // ================== DEBUG CHECK ==================
+  setTimeout(() => {
+    console.log('[Switch] 🔍 Status check:');
+    console.log('  - Current currency:', currentCurrency);
+    console.log('  - TON module:', window.WTTonDeposit ? '✅' : '❌');
+    console.log('  - Stars module:', window.WTStarsDeposit ? '✅' : '❌');
+    
+    const icon = document.getElementById('pillCurrencyIcon');
+    if (icon) {
+      console.log('  - Icon element: ✅');
+      console.log('  - Icon src:', icon.src);
+      console.log('  - Icon visible:', icon.offsetParent !== null);
+      console.log('  - Expected icon:', currentCurrency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg');
+    } else {
+      console.error('  - Icon element: ❌ NOT FOUND!');
+      console.error('  - Check HTML: <img id="pillCurrencyIcon" ... />');
+    }
+  }, 1000);
+
+  console.log('[Switch] 📦 Module loaded');
 
 })();
