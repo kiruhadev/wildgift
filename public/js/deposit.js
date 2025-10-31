@@ -70,7 +70,9 @@
 
   function openSheet(){ 
     sheet?.classList.add("sheet--open");
+    console.log('[deposit] 📂 Opening sheet. Connected:', !!tc?.account);
     updateSheetContent();
+    renderUI(); // ВАЖНО: Обновляем UI при каждом открытии!
     if (tg?.HapticFeedback) {
       tg.HapticFeedback.impactOccurred('light');
     }
@@ -472,6 +474,7 @@
   function renderUI(){
     const currentCurrency = getCurrentCurrency();
     const connected = !!tc.account;
+    console.log('[deposit] 🎨 renderUI: currency=', currentCurrency, 'connected=', connected);
     
     if (currentCurrency === 'ton') {
       if (btnConnect) {
