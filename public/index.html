@@ -361,43 +361,44 @@
       </button>
     </nav>
 
-    <!-- ===== DEPOSIT SHEET ===== -->
-    <div id="depositSheet" class="sheet">
-      <div class="sheet__backdrop"></div>
-      <div class="sheet__panel">
-        <div class="sheet__handle"></div>
-        <button id="depClose" class="sheet__close">×</button>
+    <!-- TON Deposit Popup (по дизайну) -->
+<div id="tonDepositPopup" class="ton-popup">
+  <div class="ton-popup__backdrop"></div>
+  <div class="ton-popup__content">
+    <!-- Кнопка закрытия -->
+    <button id="tonPopupClose" class="ton-popup__close" aria-label="Close">×</button>
     
-        <h3 class="sheet__title">Deposit WildGift Balance</h3>
-        
-        <!-- НОВОЕ: Показываем баланс кошелька -->
-        <div class="wallet-balance-display">
-          <img src="/icons/telegramWallet.svg" alt="" class="wallet-icon" />
-          <span class="wallet-balance-label">Wallet Balance:</span>
-          <span id="walletBalance" class="wallet-balance-value">—</span>
-        </div>
-        
-        <p class="sheet__sub">Minimum deposit <b>0.5 TON</b></p>
+    <!-- Заголовок -->
+    <h2 class="ton-popup__title">Deposit Rolls Balance</h2>
     
-        <label class="dep-input">
-          <img class="dep-input__icon" src="/icons/ton.svg" alt="">
-          <input id="depAmount" type="text" inputmode="decimal" placeholder="0 TON" />
-        </label>
-    
-        <div class="dep-hint">Enter amount and confirm in your wallet</div>
-    
-        <div class="dep-actions">
-          <button id="btnConnectWallet" class="btn btn--ghost">
-            <span class="btn__icons"><img src="/icons/telegram.svg" alt=""></span>
-            Connect wallet
-          </button>
-    
-          <button id="btnDepositNow" class="btn btn--primary" disabled>
-            Deposit Now
-          </button>
-        </div>
-      </div>
+    <!-- Большой баланс по центру -->
+    <div class="ton-popup__big-balance">
+      <span id="tonBigBalance" class="ton-popup__big-number">0</span>
+      <span class="ton-popup__big-currency">TON</span>
     </div>
+    
+    <!-- Баланс кошелька (маленький снизу) -->
+    <div class="ton-popup__wallet-balance">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" class="ton-popup__wallet-icon">
+        <path d="M17 7H15V5C15 3.34 13.66 2 12 2H5C3.34 2 2 3.34 2 5V15C2 16.66 3.34 18 5 18H17C17.55 18 18 17.55 18 17V8C18 7.45 17.55 7 17 7ZM15 13H13V11H15V13Z" fill="currentColor" opacity="0.6"/>
+      </svg>
+      <span id="tonWalletBalance">1.51 TON</span>
+    </div>
+    
+    <!-- Разделитель -->
+    <div class="ton-popup__divider"></div>
+    
+    <!-- Кнопка Connect Wallet (показывается если не подключен) -->
+    <button id="btnConnectWallet" class="ton-popup__deposit-btn">
+      Connect Wallet
+    </button>
+    
+    <!-- Кнопка Deposit TON (показывается если подключен) -->
+    <button id="btnDepositTon" class="ton-popup__deposit-btn" style="display: none;">
+      Deposit TON
+    </button>
+  </div>
+</div>
 </div>
 
 <!-- Добавь эти элементы перед закрывающим </body> в твоём index.html -->
