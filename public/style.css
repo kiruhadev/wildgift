@@ -2506,8 +2506,8 @@
 
 
       /* ============================================
-   DEPOSIT POPUPS - TON & STARS
-   Общие стили для обоих попапов
+   DEPOSIT POPUPS - ИСПРАВЛЕННАЯ ВЕРСИЯ
+   Убраны прыжки при открытии
    ============================================ */
 
 .deposit-popup {
@@ -2518,10 +2518,16 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
+  /* Важно: используем opacity для плавной анимации */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
 }
 
 .deposit-popup--open {
   display: flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Затемнённый фон */
@@ -2530,10 +2536,9 @@
   inset: 0;
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(8px);
-  animation: fadeIn 0.2s ease;
 }
 
-/* Контент попапа */
+/* Контент попапа - ИСПРАВЛЕНО */
 .deposit-popup__content {
   position: relative;
   width: 100%;
@@ -2541,8 +2546,22 @@
   background: #1e2329;
   border-radius: 24px;
   padding: 32px 24px 24px;
-  animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  text-align: center;
+  /* Убираем transform из начального состояния */
+  transform: scale(1);
+  /* Плавная анимация только scale */
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  z-index: 1;
+}
+
+/* Анимация появления - только при открытии */
+.deposit-popup:not(.deposit-popup--open) .deposit-popup__content {
+  transform: scale(0.9);
+}
+
+/* Компактная версия */
+.deposit-popup__content--compact {
+  padding: 24px 20px 20px;
 }
 
 /* Кнопка закрытия */
@@ -2569,6 +2588,10 @@
   color: rgba(255, 255, 255, 0.9);
 }
 
+.deposit-popup__close:active {
+  transform: scale(0.9);
+}
+
 .deposit-popup__close svg {
   width: 20px;
   height: 20px;
@@ -2584,31 +2607,106 @@
   text-align: center;
 }
 
-/* Текущий баланс (большой) */
-.deposit-popup__current-balance {
-  margin-bottom: 32px;
+.deposit-popup__content--compact .deposit-popup__title {
+  font-size: 20px;
+  margin: 0 0 16px 0;
+  padding-right: 32px;
 }
 
-.deposit-popup__balance-big {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 12px;
-  font-size: 72px;
-  font-weight: 700;
-  color: #a0a0a0;
-  line-height: 1;
+/* ============================================
+   ERROR NOTIFICATION - ИСПРАВЛЕНО
+   ============================================ */
+
+.error-notification {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 77, 79, 0.12);
+  border: 1px solid rgba(255, 77, 79, 0.3);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  /* Важно: начинаем с скрытого состояния */
+  opacity: 0;
+  transform: translateY(-10px);
+  max-height: 0;
+  overflow: hidden;
+  transition: all 0.3s ease;
 }
 
-.deposit-popup__currency {
-  font-size: 40px;
-  font-weight: 700;
-  color: #ffffff;
+.error-notification:not([hidden]) {
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 100px;
 }
 
-/* Поле ввода суммы */
+.error-icon {
+  width: 16px;
+  height: 16px;
+  color: #ff4d4f;
+  flex-shrink: 0;
+}
+
+.error-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ff6b6b;
+  line-height: 1.3;
+}
+
+/* ============================================
+   INPUT VALIDATION STATES - ИСПРАВЛЕНО
+   ============================================ */
+
+.deposit-popup__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  /* Убираем transition отсюда */
+}
+
+/* Состояние ошибки - ИСПРАВЛЕНА АНИМАЦИЯ */
+.deposit-popup__input-wrapper.error {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97);
+}
+
+.deposit-popup__input-wrapper.error .deposit-popup__input {
+  border-color: rgba(255, 77, 79, 0.5);
+  background: rgba(255, 77, 79, 0.05);
+  /* Плавный переход */
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.deposit-popup__input-wrapper.error .deposit-popup__input:focus {
+  border-color: rgba(255, 77, 79, 0.7);
+  background: rgba(255, 77, 79, 0.08);
+}
+
+/* Анимация тряски - ОПТИМИЗИРОВАНА */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+  20%, 40%, 60%, 80% { transform: translateX(3px); }
+}
+
+/* Успешное состояние */
+.deposit-popup__input-wrapper.success .deposit-popup__input {
+  border-color: rgba(39, 201, 63, 0.5);
+  background: rgba(39, 201, 63, 0.05);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.deposit-popup__input-wrapper.success .deposit-popup__input-icon {
+  filter: brightness(1.3) drop-shadow(0 0 8px rgba(39, 201, 63, 0.4));
+  transition: filter 0.2s ease;
+}
+
+/* ============================================
+   INPUT GROUP
+   ============================================ */
+
 .deposit-popup__input-group {
-  margin-bottom: 20px;
-  text-align: left;
+  margin-bottom: 16px;
 }
 
 .deposit-popup__label {
@@ -2617,27 +2715,20 @@
   font-weight: 600;
   color: rgba(255, 255, 255, 0.6);
   margin-bottom: 8px;
-  text-align: left;
-}
-
-.deposit-popup__input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
 }
 
 .deposit-popup__input-icon {
   position: absolute;
-  left: 16px;
+  left: 14px;
   width: 20px;
   height: 20px;
   pointer-events: none;
+  /* Плавный переход только для фильтра */
+  transition: filter 0.2s ease;
 }
 
-.deposit-popup__input-icon--emoji {
-  font-size: 20px;
-  width: auto;
-  height: auto;
+.deposit-popup__input-icon--stars {
+  filter: brightness(1.2) saturate(1.3);
 }
 
 .deposit-popup__input {
@@ -2650,8 +2741,8 @@
   color: #ffffff;
   font-size: 18px;
   font-weight: 600;
-  transition: all 0.2s ease;
-  text-align: left;
+  /* Оптимизированный transition */
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 .deposit-popup__input:focus {
@@ -2673,25 +2764,21 @@
   pointer-events: none;
 }
 
-.deposit-popup__hint {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-top: 6px;
-  text-align: left;
-}
+/* ============================================
+   WALLET INFO
+   ============================================ */
 
-/* Баланс кошелька (маленький) */
 .deposit-popup__wallet-info {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
+  padding: 8px 14px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 20px;
   font-size: 13px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .deposit-popup__wallet-icon {
@@ -2700,14 +2787,20 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
-/* Разделитель */
+/* ============================================
+   DIVIDER
+   ============================================ */
+
 .deposit-popup__divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 0 0 20px 0;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0 0 16px 0;
 }
 
-/* Кнопка */
+/* ============================================
+   BUTTON
+   ============================================ */
+
 .deposit-popup__button {
   width: 100%;
   height: 52px;
@@ -2738,40 +2831,17 @@
   transform: none;
 }
 
-/* Анимации */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+/* ============================================
+   АДАПТИВНОСТЬ
+   ============================================ */
 
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-/* Адаптивность */
 @media (max-width: 420px) {
-  .deposit-popup__content {
-    padding: 28px 20px 20px;
+  .deposit-popup__content--compact {
+    padding: 20px 16px 16px;
   }
   
   .deposit-popup__title {
     font-size: 18px;
-  }
-  
-  .deposit-popup__balance-big {
-    font-size: 60px;
-    gap: 10px;
-  }
-  
-  .deposit-popup__currency {
-    font-size: 36px;
   }
   
   .deposit-popup__input {
@@ -2785,26 +2855,61 @@
   }
 }
 
-@media (max-height: 700px) {
-  .deposit-popup__current-balance {
-    margin-bottom: 24px;
+@media (max-height: 600px) {
+  .deposit-popup__content--compact {
+    padding: 18px 16px 14px;
   }
   
-  .deposit-popup__balance-big {
-    font-size: 56px;
+  .deposit-popup__input-group {
+    margin-bottom: 12px;
   }
   
-  .deposit-popup__currency {
-    font-size: 32px;
+  .deposit-popup__wallet-info {
+    margin-bottom: 12px;
+  }
+  
+  .deposit-popup__divider {
+    margin: 0 0 12px 0;
   }
 }
 
-/* Accessibility */
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
 @media (prefers-reduced-motion: reduce) {
-  .deposit-popup__backdrop,
-  .deposit-popup__content {
+  .deposit-popup,
+  .deposit-popup__content,
+  .deposit-popup__input-wrapper.error,
+  .error-notification {
     animation: none;
+    transition: none;
   }
+  
+  .deposit-popup__input,
+  .deposit-popup__input-icon,
+  .deposit-popup__button {
+    transition: none;
+  }
+}
+
+/* ============================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================ */
+
+.deposit-popup__content {
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Удаляем will-change после анимации */
+.deposit-popup--open .deposit-popup__content {
+  animation: removeWillChange 0.5s 0.5s forwards;
+}
+
+@keyframes removeWillChange {
+  to { will-change: auto; }
 }
 /* ============================================
    STARS ICON STYLES
