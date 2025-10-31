@@ -17,6 +17,25 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
+  <!-- Splash Screen -->
+  <div id="splash" class="splash" role="dialog" aria-label="Loading">
+    <div class="splash__center">
+      <div class="splash__brandRow">
+        <img src="images/logo.png" alt="" class="splash__logo">
+        <div class="splash__brand">WildGift</div>
+      </div>
+
+      <div class="splash__progress">
+        <div class="splash__bar" aria-label="Loading progress">
+        <div class="splash__bar-fill" id="splash-fill"></div>
+        </div>
+        <!-- Если процент не нужен — оставь hidden -->
+        <div class="splash__percent" id="splash-percent" hidden>0%</div>
+      </div>
+    </div>
+  </div>
+
+
   <div class="app">
 
     <!-- ===== TOP BAR ===== -->
@@ -454,6 +473,7 @@
 </style>
 
   <!-- Скрипты проекта -->
+  <script src="js/splash.js" defer></script>
   <script src="/js/app.js" defer></script>
   <script src="/js/deposit.js" defer></script>
   <script src="/js/wheel.js" defer></script>
