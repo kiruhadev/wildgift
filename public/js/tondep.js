@@ -1,10 +1,10 @@
-// public/js/tondep.js - TON Deposit Module (WORKING VERSION)
+// public/js/tondep.js - TON Deposit Module (UPDATED WITH VALIDATION)
 (() => {
     console.log('[TON] 🚀 Starting TON module');
   
     // ====== КОНФИГ ======
     const MANIFEST_URL = `${location.origin}/tonconnect-manifest.json`;
-    const PROJECT_TON_ADDRESS = "UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J"; // ← ЗАМЕНИТЕ!
+    const PROJECT_TON_ADDRESS = "UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J";
     const MIN_DEPOSIT = 0.1;
   
     // ====== DOM ======
@@ -19,9 +19,10 @@
   
     const backdrop = popup.querySelector(".deposit-popup__backdrop");
     const btnClose = document.getElementById("tonPopupClose");
-    const balanceBig = document.getElementById("tonBalanceBig");
     const walletBalance = document.getElementById("tonWalletBalance");
     const amountInput = document.getElementById("tonAmountInput");
+    const inputWrapper = document.getElementById("tonInputWrapper");
+    const errorNotification = document.getElementById("tonErrorNotification");
     const btnConnect = document.getElementById("btnConnectTonWallet");
     const btnDeposit = document.getElementById("btnDepositTon");
   
@@ -55,6 +56,59 @@
       return (Number(nano) / 1_000_000_000).toFixed(2);
     }
   
+    // ====== VALIDATION ======
+    function validateAmount() {
+      const amount = normalize(amountInput?.value);
+      
+      // Очищаем предыдущее состояние
+      if (inputWrapper) {
+        inputWrapper.classList.remove('error', 'success');
+      }
+      if (errorNotification) {
+        errorNotification.hidden = true;
+      }
+      
+      if (amount >= MIN_DEPOSIT) {
+        // Успех
+        if (inputWrapper) inputWrapper.classList.add('success');
+        if (btnDeposit && tc?.account) btnDeposit.disabled = false;
+        return true;
+      } else if (amount > 0) {
+        // Меньше минимума
+        if (btnDeposit) btnDeposit.disabled = true;
+        return false;
+      } else {
+        // Пустое
+        if (btnDeposit) btnDeposit.disabled = true;
+        return false;
+      }
+    }
+    
+    function showValidationError() {
+      if (inputWrapper) {
+        inputWrapper.classList.remove('success');
+        inputWrapper.classList.add('error');
+        
+        // Убираем тряску через 400ms
+        setTimeout(() => {
+          inputWrapper.classList.remove('error');
+        }, 400);
+      }
+      
+      if (errorNotification) {
+        errorNotification.hidden = false;
+        
+        // Скрываем через 3 секунды
+        setTimeout(() => {
+          errorNotification.hidden = true;
+        }, 3000);
+      }
+      
+      if (tg?.HapticFeedback) {
+        tg.HapticFeedback.notificationOccurred('error');
+      }
+    }
+  
     // ====== POPUP ======
     function openPopup() {
       console.log('[TON] 📂 Open popup');
@@ -66,6 +120,9 @@
   
     function closePopup() {
       popup.classList.remove('deposit-popup--open');
+      // Очищаем валидацию при закрытии
+      if (inputWrapper) inputWrapper.classList.remove('error', 'success');
+      if (errorNotification) errorNotification.hidden = true;
     }
   
     backdrop?.addEventListener('click', closePopup);
@@ -78,7 +135,14 @@
       amountInput.value = amountInput.value
         .replace(",", ".").replace(/[^0-9.]/g, "").replace(/^(\d*\.\d*).*$/, "$1");
       try { amountInput.setSelectionRange(caret, caret); } catch {}
-      updateUI();
+      validateAmount();
+    });
+    
+    amountInput?.addEventListener('blur', () => {
+      const amount = normalize(amountInput?.value);
+      if (amount > 0 && amount < MIN_DEPOSIT) {
+        showValidationError();
+      }
     });
   
     // ====== TONCONNECT ======
@@ -143,15 +207,14 @@
     // ====== UI ======
     function updateUI() {
       const connected = !!tc?.account;
-      const amount = normalize(amountInput?.value);
-      const valid = amount >= MIN_DEPOSIT;
+      const valid = validateAmount();
   
-      console.log('[TON] UI:', { connected, amount, valid });
+      console.log('[TON] UI:', { connected, valid });
   
       if (btnConnect) btnConnect.style.display = connected ? 'none' : 'block';
       if (btnDeposit) {
         btnDeposit.style.display = connected ? 'block' : 'none';
-        btnDeposit.disabled = !valid;
+        btnDeposit.disabled = !valid || !connected;
       }
     }
   
@@ -159,7 +222,6 @@
     function updateBalance(balance) {
       platformBalance = balance;
       if (tonAmount) tonAmount.textContent = balance.toFixed(2);
-      if (balanceBig) balanceBig.textContent = Math.floor(balance);
       console.log('[TON] 💰 Balance:', balance);
     }
   
@@ -187,8 +249,10 @@
       e.preventDefault();
       
       const amount = normalize(amountInput?.value);
+      
+      // Валидация перед отправкой
       if (amount < MIN_DEPOSIT) {
-        if (tg?.showAlert) tg.showAlert(`Minimum: ${MIN_DEPOSIT} TON`);
+        showValidationError();
         return;
       }
   
@@ -283,19 +347,3 @@
       isConnected: () => !!tc?.account
     };
   })();
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
