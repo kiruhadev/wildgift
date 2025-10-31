@@ -2564,45 +2564,310 @@
 
 
 
+/* ============================================
+   SPLASH SCREEN - Чёрная тема с фоном
+   Длительность: 1.2 секунды
+   ============================================ */
 
-      /* SPLASH */
-.splash{
-  position:fixed; inset:0; z-index:9999;
-  background:#0b0b0b center/cover no-repeat url('images/splash-bg.jpg');
-}
-.splash::before{content:""; position:absolute; inset:0; background:rgba(0,0,0,.45);}
-
-.splash__center{
-  position:absolute; inset:0;
-  display:grid; place-items:center; /* по центру экрана */
-  gap:16px; z-index:1; text-align:center;
-}
-
-/* строка с логотипом и названием */
-.splash__brandRow{display:inline-flex; align-items:center; gap:10px;}
-.splash__logo{
-  width:clamp(28px, 6vw, 40px); height:clamp(28px, 6vw, 40px);
-  object-fit:contain; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.35);
-}
-.splash__brand{
-  font-weight:700;
-  font-size:clamp(18px, 5.2vw, 28px); /* аккуратный размер */
-  line-height:1.1; color:#fff; letter-spacing:.2px;
-  text-shadow:0 2px 14px rgba(0,0,0,.35);
-}
-
-/* прогресс — узкая полоска прямо под названием */
-.splash__progress{display:grid; gap:8px; justify-items:center;}
-.splash__bar{
-  width:clamp(160px, 40vw, 280px); height:6px;
-  background:rgba(255,255,255,.18); border-radius:999px; overflow:hidden;
-  box-shadow:0 2px 10px rgba(0,0,0,.25) inset;
-}
-.splash__bar-fill{height:100%; width:0%; background:#fff; transform-origin:left; transition:width .25s ease;}
-.splash__percent{font:600 12px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#fff; opacity:.9;}
-
-.splash--hide{opacity:0; transition:opacity .4s ease; pointer-events:none;}
-@media (prefers-reduced-motion: reduce){
-  .splash__bar-fill{transition:none}
-  .splash--hide{transition:none}
-}
+   .splash {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: #000000; /* Чёрный фон на случай если картинка не загрузится */
+    overflow: hidden;
+  }
+  
+  /* Фоновое изображение */
+  .splash__background {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+  
+  .splash__bg-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+  
+  /* Затемняющий оверлей для читаемости текста */
+  .splash__overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.7) 0%,
+      rgba(0, 0, 0, 0.85) 100%
+    );
+  }
+  
+  /* Центральный контейнер */
+  .splash__center {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 20px;
+    animation: fadeInContent 0.4s ease-out;
+  }
+  
+  /* Строка с логотипом и названием */
+  .splash__brandRow {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    animation: slideInScale 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  
+  /* Логотип */
+  .splash__logo {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+    border-radius: 14px;
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.6),
+      0 0 0 1px rgba(255, 255, 255, 0.05);
+    animation: glow 2s ease-in-out infinite;
+  }
+  
+  /* Название */
+  .splash__brand {
+    font-weight: 800;
+    font-size: 36px;
+    line-height: 1;
+    color: #ffffff;
+    letter-spacing: 0.5px;
+    text-shadow: 
+      0 2px 8px rgba(0, 0, 0, 0.6),
+      0 4px 16px rgba(0, 0, 0, 0.4);
+    animation: fadeIn 0.6s ease-out 0.2s both;
+  }
+  
+  /* Контейнер прогресса */
+  .splash__progress {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 260px;
+    animation: fadeInUp 0.5s ease-out 0.3s both;
+  }
+  
+  /* Прогресс-бар */
+  .splash__bar {
+    width: 100%;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) inset;
+  }
+  
+  /* Заливка прогресс-бара */
+  .splash__bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #ffffff 0%, #e0e7ff 100%);
+    border-radius: 999px;
+    transform-origin: left;
+    transition: width 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 
+      0 0 16px rgba(255, 255, 255, 0.6),
+      0 0 8px rgba(255, 255, 255, 0.4);
+  }
+  
+  /* Блик на прогресс-баре */
+  .splash__bar-fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.4) 50%,
+      transparent 100%
+    );
+    animation: shimmer 1.5s infinite;
+  }
+  
+  /* Процент (скрыт по умолчанию) */
+  .splash__percent {
+    font: 600 13px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    color: rgba(255, 255, 255, 0.8);
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  }
+  
+  /* Скрытие splash */
+  .splash--hide {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  
+  /* ============================================
+     АНИМАЦИИ
+     ============================================ */
+  
+  @keyframes fadeInContent {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideInScale {
+    0% {
+      opacity: 0;
+      transform: translateY(-10px) scale(0.95);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes glow {
+    0%, 100% {
+      filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.2));
+    }
+    50% {
+      filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.4));
+    }
+  }
+  
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(200%);
+    }
+  }
+  
+  /* ============================================
+     АДАПТИВНОСТЬ
+     ============================================ */
+  
+  @media (max-width: 380px) {
+    .splash__logo {
+      width: 48px;
+      height: 48px;
+    }
+    
+    .splash__brand {
+      font-size: 30px;
+    }
+    
+    .splash__brandRow {
+      gap: 12px;
+    }
+    
+    .splash__progress {
+      max-width: 220px;
+    }
+  }
+  
+  @media (max-height: 600px) {
+    .splash__center {
+      gap: 24px;
+    }
+    
+    .splash__logo {
+      width: 48px;
+      height: 48px;
+    }
+    
+    .splash__brand {
+      font-size: 30px;
+    }
+  }
+  
+  /* Горизонтальная ориентация */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .splash__center {
+      gap: 20px;
+    }
+    
+    .splash__logo {
+      width: 40px;
+      height: 40px;
+    }
+    
+    .splash__brand {
+      font-size: 26px;
+    }
+  }
+  
+  /* ============================================
+     ACCESSIBILITY
+     ============================================ */
+  
+  @media (prefers-reduced-motion: reduce) {
+    .splash__bar-fill {
+      transition: none;
+    }
+    
+    .splash--hide {
+      transition: none;
+    }
+    
+    .splash__center,
+    .splash__brandRow,
+    .splash__progress {
+      animation: none;
+    }
+    
+    .splash__bar-fill::after,
+    .splash__logo {
+      animation: none;
+    }
+  }
+  
+  /* Высокая контрастность */
+  @media (prefers-contrast: high) {
+    .splash__overlay {
+      background: rgba(0, 0, 0, 0.9);
+    }
+    
+    .splash__bar {
+      background: rgba(255, 255, 255, 0.25);
+    }
+    
+    .splash__brand {
+      text-shadow: 
+        0 0 8px rgba(0, 0, 0, 1),
+        0 2px 4px rgba(0, 0, 0, 1);
+    }
+  }
+  
