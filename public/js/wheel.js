@@ -1,5 +1,4 @@
-// /public/js/wheel.js
-// Idle spin + countdown + accelerate + smooth decel to server slice + history-after-stop + clear bets + IMAGES
+// wheel.js - Исправленная система ставок с точным совпадением
 
 /* ===== CONFIG ===== */
 const WHEEL_ORDER = [
@@ -18,12 +17,7 @@ const COLORS = {
   'Wild Time': { fill: '#c5161d', text: '#fff' }
 };
 
-// Пути к изображениям для каждого типа
 const IMAGES = {
-  '1x'       : '/images/bets/1x.png',
-  '3x'       : '/images/bets/3x.png',
-  '7x'       : '/images/bets/7x.png',
-  '11x'      : '/images/bets/11x.png',
   '50&50'    : '/images/bets/50-50.png',
   'Loot Rush': '/images/bets/loot.png',
   'Wild Time': '/images/bets/wild.png'
@@ -34,15 +28,20 @@ const LABELS = {
   '50&50':'50&50','Loot Rush':'Loot','Wild Time':'Wild' 
 };
 
-// Поздравительные сообщения
+// Сообщения для выигрыша и проигрыша
 const WIN_MESSAGES = {
-  '1x': '🎉 Удача на твоей стороне!',
-  '3x': '🎊 Отличный результат!',
-  '7x': '✨ Невероятно! Множитель 7x!',
-  '11x': '🌟 Фантастика! Множитель 11x!',
-  '50&50': '🎁 Бонус 50&50! Попробуй удачу!',
-  'Loot Rush': '💎 Loot Rush! Время сокровищ!',
-  'Wild Time': '🔥 WILD TIME! Максимальный бонус!'
+  '1x': '🎉 You won with 1×!',
+  '3x': '🎊 Great! 3× multiplier!',
+  '7x': '✨ Amazing! 7× multiplier!',
+  '11x': '🌟 Fantastic! 11× multiplier!',
+  '50&50': '🎁 50&50 Bonus! Try your luck!',
+  'Loot Rush': '💎 Loot Rush! Treasure time!',
+  'Wild Time': '🔥 WILD TIME! Maximum bonus!'
+};
+
+const LOSS_MESSAGES = {
+  default: '😔 Not this time... Try again!',
+  close: '😕 So close! Better luck next time!'
 };
 
 /* ===== DOM refs ===== */
@@ -59,20 +58,17 @@ const SLICE_COUNT   = WHEEL_ORDER.length;
 const SLICE_ANGLE   = (2*Math.PI)/SLICE_COUNT;
 const POINTER_ANGLE = -Math.PI/2;
 
-// Скорости
 const IDLE_OMEGA = 0.35;
 const FAST_OMEGA = 9.0;
 let omega = IDLE_OMEGA;
 
-// Фазы: 'betting' | 'accelerate' | 'decelerate'
 let phase = 'betting';
-
-// Торможение
 let decel = null;
 
 /* ===== Ставки ===== */
 const betsMap = new Map();
 let currentAmount = 0.5;
+let lastRoundResult = null; // Для хранения результата последнего раунда
 
 /* ===== Предзагрузка изображений ===== */
 const loadedImages = new Map();
@@ -89,7 +85,7 @@ function preloadImages() {
         };
         img.onerror = () => {
           console.warn(`Failed to load image: ${src}`);
-          resolve(); // Продолжаем даже если изображение не загрузилось
+          resolve();
         };
         img.src = src;
       });
@@ -102,7 +98,6 @@ function preloadImages() {
 
 /* ===== Init ===== */
 window.addEventListener('DOMContentLoaded', async () => {
-  // DOM
   canvas       = document.getElementById('wheelCanvas');
   betOverlay   = document.getElementById('betOverlay');
   historyList  = document.getElementById('historyList');
@@ -113,24 +108,18 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   if (!canvas) return;
 
-  // Предзагрузка изображений
   await preloadImages();
 
-  // Canvas prep
   prepareCanvas();
   drawWheel(currentAngle);
 
-  // Betting UI
   initBettingUI();
 
-  // Idle loop
   lastTs = performance.now();
   rafId = requestAnimationFrame(tick);
 
-  // Start first countdown
   startCountdown(9);
 
-  // Resize
   window.addEventListener('resize', () => {
     prepareCanvas();
     drawWheel(currentAngle);
@@ -174,15 +163,12 @@ function initBettingUI(){
     });
   });
 
-  // Action buttons
   const undoBtn = document.querySelector('[data-action="undo"]');
   const clearBtn = document.querySelector('[data-action="clear"]');
-  const repeatBtn = document.querySelector('[data-action="repeat"]');
 
   if (undoBtn) {
     undoBtn.addEventListener('click', () => {
       if (phase !== 'betting') return;
-      // Простая реализация: удаляем последнюю ставку
       const lastSeg = Array.from(betsMap.keys()).pop();
       if (lastSeg) {
         const cur = betsMap.get(lastSeg) || 0;
@@ -242,7 +228,6 @@ function drawWheel(angle=0){
   ctx.save();
   ctx.clearRect(0,0,w,h);
 
-  // Glow
   const g = ctx.createRadialGradient(cx,cy,R*0.25, cx,cy,R);
   g.addColorStop(0,'rgba(0,170,255,.12)');
   g.addColorStop(1,'rgba(0,0,0,0)');
@@ -257,51 +242,60 @@ function drawWheel(angle=0){
     const col = COLORS[key] || { fill:'#333', text:'#fff' };
     const a0 = i*SLICE_ANGLE, a1 = a0+SLICE_ANGLE;
 
-    // Сектор
+    ctx.save();
+    
     ctx.beginPath();
     ctx.moveTo(0,0);
     ctx.arc(0,0,R,a0,a1,false);
     ctx.closePath();
-    ctx.fillStyle = col.fill; 
-    ctx.fill();
+    
+    if (imagesLoaded && loadedImages.has(key)) {
+      const img = loadedImages.get(key);
+      
+      ctx.save();
+      ctx.clip();
+      
+      const mid = a0 + SLICE_ANGLE/2;
+      ctx.rotate(mid);
+      
+      const imgWidth = R * 1.2;
+      const imgHeight = R * Math.tan(SLICE_ANGLE/2) * 2.2;
+      
+      ctx.drawImage(
+        img, 
+        0, -imgHeight/2,
+        imgWidth, imgHeight
+      );
+      
+      ctx.restore();
+      
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = col.fill;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = col.fill; 
+      ctx.fill();
+    }
 
-    // Разделитель
     ctx.lineWidth = 2;
     ctx.strokeStyle = 'rgba(255,255,255,.2)';
     ctx.stroke();
 
-    // Изображение в секторе
-    if (imagesLoaded && loadedImages.has(key)) {
-      ctx.save();
-      const mid = a0 + SLICE_ANGLE/2;
-      ctx.rotate(mid);
-      
-      const img = loadedImages.get(key);
-      const imgSize = R * 0.35; // Размер изображения
-      const imgX = R * 0.55; // Позиция от центра
-      
-      ctx.translate(imgX, 0);
-      ctx.rotate(-mid - angle); // Компенсируем вращение для вертикального изображения
-      
-      // Рисуем изображение
-      ctx.drawImage(img, -imgSize/2, -imgSize/2, imgSize, imgSize);
-      
-      ctx.restore();
-    } else {
-      // Fallback: текстовая подпись
-      ctx.save();
-      const mid = a0 + SLICE_ANGLE/2;
-      ctx.rotate(mid);
-      ctx.textAlign='right';
-      ctx.textBaseline='middle';
-      ctx.fillStyle = col.text;
-      ctx.font='bold 14px mf, system-ui, sans-serif';
-      ctx.fillText(LABELS[key] || key, R-12, 0);
-      ctx.restore();
-    }
+    const mid = a0 + SLICE_ANGLE/2;
+    ctx.rotate(mid);
+    ctx.textAlign='right';
+    ctx.textBaseline='middle';
+    ctx.fillStyle = col.text;
+    ctx.font='bold 16px mf, system-ui, sans-serif';
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(LABELS[key] || key, R-16, 0);
+    ctx.shadowBlur = 0;
+    
+    ctx.restore();
   }
 
-  // Center cap
   ctx.beginPath(); 
   ctx.arc(0,0,20,0,2*Math.PI);
   ctx.fillStyle='#121212'; 
@@ -326,8 +320,7 @@ function tick(ts){
     currentAngle = decel.start + (decel.end - decel.start) * eased;
 
     if (t >= 1){
-      // Полная остановка
-      currentAngle = decel.end; // Фиксируем финальный угол
+      currentAngle = decel.end;
       const typeFinished = decel.resultType;
       const resolveFn = decel.resolve;
       decel = null;
@@ -336,14 +329,14 @@ function tick(ts){
       omega = IDLE_OMEGA;
       setBetPanel(true);
 
-      // Показываем поздравление
+      // Проверяем результат раунда
       if (typeFinished) {
-        showWinMessage(typeFinished);
+        checkBetsAndShowResult(typeFinished);
         setTimeout(() => {
           pushHistory(typeFinished);
           clearBets();
           startCountdown(9);
-        }, 2500); // Показываем сообщение 2.5 секунды
+        }, 3000);
       } else {
         clearBets();
         startCountdown(9);
@@ -352,7 +345,6 @@ function tick(ts){
       if (resolveFn) resolveFn();
     }
   } else if (phase === 'betting' || phase === 'accelerate') {
-    // Idle / accelerate - крутим равномерно
     currentAngle += omega * dt;
   }
 
@@ -360,97 +352,193 @@ function tick(ts){
   rafId = requestAnimationFrame(tick);
 }
 
-/* ===== Win Message ===== */
-function showWinMessage(typeKey) {
-  const message = WIN_MESSAGES[typeKey] || '🎉 Поздравляем!';
+/* ===== Проверка ставок и показ результата ===== */
+function checkBetsAndShowResult(resultType) {
+  const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
   
-  // Создаём overlay для сообщения
-  const overlay = document.createElement('div');
-  overlay.style.cssText = `
-    position: fixed;
-    inset: 0;
-    z-index: 10000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(8px);
-    animation: fadeIn 0.3s ease;
-  `;
+  // Если нет ставок - просто показываем что выпало
+  if (totalBets <= 0) {
+    console.log('No bets placed');
+    showResultMessage(resultType, false, 0, 0);
+    return;
+  }
 
-  const messageBox = document.createElement('div');
-  messageBox.style.cssText = `
-    background: linear-gradient(135deg, #1a2332, #0f1620);
-    border: 2px solid ${COLORS[typeKey]?.fill || '#00a6ff'};
-    border-radius: 24px;
-    padding: 40px 32px;
-    text-align: center;
-    max-width: 90%;
-    animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 30px ${COLORS[typeKey]?.fill || '#00a6ff'}40;
-  `;
+  // Проверяем, была ли ставка на выпавший результат
+  const betOnResult = betsMap.get(resultType) || 0;
+  
+  if (betOnResult > 0) {
+    // ВЫИГРЫШ! Ставка совпала
+    const multiplier = getMultiplier(resultType);
+    const winAmount = betOnResult * multiplier;
+    
+    console.log('🎉 WIN!', {
+      result: resultType,
+      betAmount: betOnResult,
+      multiplier,
+      winAmount,
+      totalBets
+    });
+    
+    showResultMessage(resultType, true, betOnResult, winAmount);
+  } else {
+    // ПРОИГРЫШ - ставка не совпала
+    console.log('😔 LOSS', {
+      result: resultType,
+      yourBets: Array.from(betsMap.entries()).map(([k,v]) => `${k}: ${v}`),
+      totalLost: totalBets
+    });
+    
+    showResultMessage(resultType, false, totalBets, 0);
+  }
+}
 
-  const icon = document.createElement('div');
-  icon.style.cssText = `
-    font-size: 80px;
-    line-height: 1;
-    margin-bottom: 20px;
-    animation: bounce 0.6s ease;
-  `;
-  icon.textContent = message.split(' ')[0]; // Берём emoji
+/* ===== Получить множитель для типа ===== */
+function getMultiplier(type) {
+  const multipliers = {
+    '1x': 1,
+    '3x': 3,
+    '7x': 7,
+    '11x': 11,
+    '50&50': 2,      // Бонусная игра
+    'Loot Rush': 5,  // Бонусная игра
+    'Wild Time': 10  // Максимальный бонус
+  };
+  return multipliers[type] || 1;
+}
 
-  const text = document.createElement('div');
-  text.style.cssText = `
-    font-size: 24px;
-    font-weight: 900;
-    color: #ffffff;
-    margin-bottom: 10px;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  `;
-  text.textContent = message.substring(2); // Текст без emoji
+/* ===== Показ результата (выигрыш/проигрыш) ===== */
+function showResultMessage(typeKey, isWin, betAmount, winAmount) {
+  const toast = document.createElement('div');
+  
+  // Разные стили для выигрыша и проигрыша
+  if (isWin) {
+    const color = COLORS[typeKey]?.fill || '#00a6ff';
+    toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-100px);
+      z-index: 10000;
+      background: linear-gradient(135deg, ${color}, ${adjustColor(color, -20)});
+      border: 2px solid ${color};
+      border-radius: 20px;
+      padding: 20px 28px;
+      min-width: 300px;
+      max-width: 90%;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 30px ${color}40;
+      backdrop-filter: blur(12px);
+      animation: slideDown 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    `;
 
-  const result = document.createElement('div');
-  result.style.cssText = `
-    font-size: 32px;
-    font-weight: 900;
-    color: ${COLORS[typeKey]?.fill || '#00a6ff'};
-    margin-top: 16px;
-    text-shadow: 0 0 20px ${COLORS[typeKey]?.fill || '#00a6ff'};
-  `;
-  result.textContent = LABELS[typeKey] || typeKey;
+    toast.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="font-size: 48px; animation: bounce 0.6s ease;">${WIN_MESSAGES[typeKey].split(' ')[0]}</div>
+        <div style="flex: 1;">
+          <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 4px;">
+            ${WIN_MESSAGES[typeKey].substring(2)}
+          </div>
+          <div style="font-size: 14px; color: rgba(255,255,255,0.9); margin-bottom: 8px;">
+            Bet: ${betAmount} TON
+          </div>
+          <div style="font-size: 24px; font-weight: 900; color: #ffffff;">
+            +${winAmount.toFixed(2)} TON
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    // Проигрыш
+    toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-100px);
+      z-index: 10000;
+      background: linear-gradient(135deg, #3a3a3a, #2a2a2a);
+      border: 2px solid #555;
+      border-radius: 20px;
+      padding: 20px 28px;
+      min-width: 300px;
+      max-width: 90%;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(12px);
+      animation: slideDown 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    `;
 
-  messageBox.appendChild(icon);
-  messageBox.appendChild(text);
-  messageBox.appendChild(result);
-  overlay.appendChild(messageBox);
-  document.body.appendChild(overlay);
+    const resultColor = COLORS[typeKey]?.fill || '#888';
+    toast.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="font-size: 48px;">😔</div>
+        <div style="flex: 1;">
+          <div style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 4px;">
+            ${LOSS_MESSAGES.default}
+          </div>
+          <div style="font-size: 14px; color: rgba(255,255,255,0.7); margin-bottom: 8px;">
+            Result: <span style="color: ${resultColor}; font-weight: 700;">${LABELS[typeKey]}</span>
+          </div>
+          <div style="font-size: 20px; font-weight: 700; color: #ff6b6b;">
+            -${betAmount.toFixed(2)} TON
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
   // Добавляем стили для анимаций
-  if (!document.getElementById('win-animations')) {
+  if (!document.getElementById('result-animations')) {
     const style = document.createElement('style');
-    style.id = 'win-animations';
+    style.id = 'result-animations';
     style.textContent = `
-      @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
+      @keyframes slideDown {
+        from { 
+          transform: translateX(-50%) translateY(-100px);
+          opacity: 0;
+        }
+        to { 
+          transform: translateX(-50%) translateY(0);
+          opacity: 1;
+        }
       }
-      @keyframes scaleIn {
-        from { transform: scale(0.8); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
+      @keyframes slideUp {
+        from { 
+          transform: translateX(-50%) translateY(0);
+          opacity: 1;
+        }
+        to { 
+          transform: translateX(-50%) translateY(-100px);
+          opacity: 0;
+        }
       }
       @keyframes bounce {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-10px); }
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.2); }
       }
     `;
     document.head.appendChild(style);
   }
 
-  // Удаляем через 2.5 секунды
+  document.body.appendChild(toast);
+
+  // Удаляем через 3 секунды
   setTimeout(() => {
-    overlay.style.animation = 'fadeIn 0.3s ease reverse';
-    setTimeout(() => overlay.remove(), 300);
-  }, 2200);
+    toast.style.animation = 'slideUp 0.3s ease forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 2700);
+}
+
+function adjustColor(color, amount) {
+  const clamp = (num) => Math.min(255, Math.max(0, num));
+  
+  const hex = color.replace('#', '');
+  let r = parseInt(hex.substring(0, 2), 16);
+  let g = parseInt(hex.substring(2, 4), 16);
+  let b = parseInt(hex.substring(4, 6), 16);
+  
+  r = clamp(r + amount);
+  g = clamp(g + amount);
+  b = clamp(b + amount);
+  
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
 /* ===== Countdown ===== */
@@ -493,7 +581,6 @@ function startCountdown(sec=9){
       console.log('Countdown finished, starting spin');
       stopCountdown();
 
-      // Ускоряемся
       phase = 'accelerate';
       setBetPanel(false);
       
@@ -501,18 +588,15 @@ function startCountdown(sec=9){
         await accelerateTo(FAST_OMEGA, 1200);
         console.log('Acceleration complete');
 
-        // Берём исход
         const { sliceIndex, type } = await fetchRoundOutcome();
         console.log('Round outcome:', { sliceIndex, type });
 
-        // Долго и плавно тормозим
         const dur = 5000 + Math.floor(Math.random()*2000);
         console.log('Starting deceleration, duration:', dur);
         await decelerateToSlice(sliceIndex, dur, 4, type);
         console.log('Deceleration complete');
       } catch (error) {
         console.error('Error during spin:', error);
-        // Восстанавливаем состояние в случае ошибки
         phase = 'betting';
         omega = IDLE_OMEGA;
         setBetPanel(true);
@@ -561,20 +645,14 @@ function decelerateToSlice(sliceIndex, ms=6000, extraTurns=4, typeForHistory=nul
   console.log('Decelerating to slice:', sliceIndex, 'type:', typeForHistory);
   
   return new Promise(resolve=>{
-    // Нормализуем текущий угол
     const normalizedCurrent = currentAngle % (2 * Math.PI);
-    
-    // Вычисляем целевой угол
     const sliceCenter = sliceIndex * SLICE_ANGLE + SLICE_ANGLE / 2;
     
-    // Разница между указателем и центром сектора
     let deltaToTarget = POINTER_ANGLE - normalizedCurrent - sliceCenter;
     
-    // Нормализуем разницу
     while (deltaToTarget > Math.PI) deltaToTarget -= 2 * Math.PI;
     while (deltaToTarget < -Math.PI) deltaToTarget += 2 * Math.PI;
     
-    // Добавляем дополнительные обороты
     const endAngle = currentAngle + deltaToTarget + extraTurns * 2 * Math.PI;
     
     console.log('Deceleration params:', {
@@ -596,7 +674,7 @@ function decelerateToSlice(sliceIndex, ms=6000, extraTurns=4, typeForHistory=nul
     };
     
     phase = 'decelerate';
-    omega = 0; // Останавливаем автоматическое вращение
+    omega = 0;
   });
 }
 
@@ -616,7 +694,6 @@ async function fetchRoundOutcome(){
     const data = await r.json();
     console.log('Server response:', data);
     
-    // Проверяем, есть ли в ответе нужные поля
     if (data?.ok && typeof data.sliceIndex === 'number' && data.type) {
       return data;
     }
@@ -627,7 +704,6 @@ async function fetchRoundOutcome(){
     console.warn('Failed to fetch round outcome, using local fallback:', e);
   }
   
-  // Fallback локально
   const sliceIndex = Math.floor(Math.random() * SLICE_COUNT);
   const type = WHEEL_ORDER[sliceIndex];
   console.log('Local fallback result:', { sliceIndex, type });
@@ -671,6 +747,7 @@ function pushHistory(typeKey){
   item.style.borderRadius='8px';
   item.style.font='600 12px/1 mf,system-ui,sans-serif';
   item.style.marginRight='6px';
+  item.style.flexShrink='0';
   historyList.prepend(item);
   
   const all = historyList.querySelectorAll('.history-item');
@@ -678,6 +755,7 @@ function pushHistory(typeKey){
 }
 
 function clearBets(){
+  console.log('Clearing all bets');
   betsMap.clear();
   betTiles.forEach(tile=>{
     const badge = tile.querySelector('.bet-badge');
@@ -687,4 +765,9 @@ function clearBets(){
     }
     tile.classList.remove('active', 'has-bet');
   });
+}
+
+function hasBets() {
+  const total = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
+  return total > 0;
 }
