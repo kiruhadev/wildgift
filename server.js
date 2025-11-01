@@ -80,7 +80,170 @@ app.get("/api/tg/photo/:userId", async (req, res) => {
   }
 });
 
+
+
+
+
+
+
+
+
 // ====== DEPOSIT NOTIFICATION ======
+app.post("/api/deposit-notification", async (req, res) => {
+  try {
+    const { amount, currency, userId, txHash, timestamp, initData, invoiceId, type, roundId, bets } = req.body;
+    
+    const depositId = invoiceId || txHash || `${userId}_${currency}_${Math.abs(amount)}_${timestamp}`;
+    
+    console.log('[Deposit] Notification received:', {
+      amount,
+      currency,
+      userId,
+      type: type || 'deposit',
+      depositId: depositId?.substring(0, 20) + '...',
+      timestamp
+    });
+
+    // 🔥 Проверка дубликатов ТОЛЬКО для положительных сумм (депозиты)
+    if (amount > 0 && isDepositProcessed(depositId)) {
+      console.log('[Deposit] ⚠️ Duplicate detected, skipping:', depositId);
+      return res.json({ 
+        ok: true, 
+        message: 'Already processed',
+        duplicate: true
+      });
+    }
+
+    // Validation
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: 'User ID required' });
+    }
+
+    // 🔥 Разрешаем отрицательные суммы (списание)
+    if (amount === 0 || !Number.isFinite(amount)) {
+      return res.status(400).json({ ok: false, error: 'Invalid amount' });
+    }
+
+    if (!currency || !['ton', 'stars'].includes(currency)) {
+      return res.status(400).json({ ok: false, error: 'Invalid currency' });
+    }
+
+    // Extract user data from initData
+    let user = null;
+    if (initData) {
+      const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
+      if (check.ok && check.params.user) {
+        try { 
+          user = JSON.parse(check.params.user);
+          db.saveUser(user);
+          console.log('[Deposit] User saved:', user.id);
+        } catch (err) {
+          console.error('[Deposit] Failed to parse user:', err);
+        }
+      }
+    }
+
+    // 🔥 Маркируем как обработанное ТОЛЬКО положительные транзакции
+    if (amount > 0) {
+      markDepositProcessed(depositId);
+    }
+
+    // Process transaction
+    try {
+      if (currency === 'ton') {
+        const newBalance = db.updateBalance(
+          userId,
+          'ton',
+          parseFloat(amount),
+          type || 'deposit',
+          generateDescription(type, amount, txHash, roundId),
+          { txHash, roundId, bets: bets ? JSON.stringify(bets) : null }
+        );
+        
+        console.log('[Deposit] ✅ TON balance updated:', { userId, amount, newBalance });
+        
+        // 🔥 BROADCAST BALANCE UPDATE
+        broadcastBalanceUpdate(userId, 'ton', newBalance);
+        
+        // Send notification for deposits only
+        if (amount > 0 && process.env.BOT_TOKEN) {
+          await sendTelegramMessage(userId, `✅ Deposit confirmed!\n\nYou received ${amount} TON`);
+        }
+        
+        return res.json({ 
+          ok: true, 
+          message: amount > 0 ? 'TON deposit processed' : 'TON deducted',
+          newBalance: newBalance,
+          amount: amount
+        });
+        
+      } else if (currency === 'stars') {
+        const newBalance = db.updateBalance(
+          userId,
+          'stars',
+          parseInt(amount),
+          type || 'deposit',
+          generateDescription(type, amount, null, roundId),
+          { invoiceId: depositId, roundId, bets: bets ? JSON.stringify(bets) : null }
+        );
+        
+        console.log('[Deposit] ✅ Stars balance updated:', { userId, amount, newBalance });
+        
+        // 🔥 BROADCAST BALANCE UPDATE
+        broadcastBalanceUpdate(userId, 'stars', newBalance);
+        
+        // Send notification for deposits only
+        if (amount > 0 && process.env.BOT_TOKEN) {
+          await sendTelegramMessage(userId, `✅ Payment successful!\n\nYou received ${amount} ⭐ Stars`);
+        }
+        
+        return res.json({ 
+          ok: true, 
+          message: amount > 0 ? 'Stars deposit processed' : 'Stars deducted',
+          newBalance: newBalance,
+          amount: amount
+        });
+      }
+      
+    } catch (err) {
+      console.error('[Deposit] Error updating balance:', err);
+      // Remove from processed if failed
+      if (amount > 0) {
+        processedDeposits.delete(depositId);
+      }
+      
+      return res.status(500).json({ 
+        ok: false, 
+        error: 'Failed to update balance',
+        details: err.message 
+      });
+    }
+
+  } catch (error) {
+    console.error('[Deposit] Error:', error);
+    res.status(500).json({ 
+      ok: false, 
+      error: error.message || 'Internal server error'
+    });
+  }
+});
+
+// 🔥 Helper: Generate transaction description
+function generateDescription(type, amount, txHash, roundId) {
+  switch (type) {
+    case 'wheel_bet':
+      return `Wheel bet${roundId ? ` (${roundId})` : ''}`;
+    case 'wheel_win':
+      return `Wheel win${roundId ? ` (${roundId})` : ''}`;
+    case 'deposit':
+      if (txHash) {
+        return `TON deposit ${txHash.substring(0, 10)}...`;
+      }
+      return amount > 0 ? 'Deposit' : 'Withdrawal';
+    default:
+      return amount > 0 ? 'Deposit' : 'Withdrawal';
+  }
+}
 // ====== SSE для автообновления баланса ======
 const balanceClients = new Map(); // userId -> Set of response objects
 

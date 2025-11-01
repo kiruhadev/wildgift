@@ -1,4 +1,4 @@
-// public/js/starsdep.js - Stars Purchase Module (FIXED - NO DUPLICATE CALLS)
+// public/js/starsdep.js - Stars Purchase Module (FIXED)
 (() => {
   console.log('[STARS] ⭐ Starting Stars module');
 
@@ -297,38 +297,24 @@
     }
   });
 
-  // ====== LOAD BALANCE ======
-  async function loadBalance() {
-    if (!tgUserId) {
-      console.log('[STARS] No user ID, skipping balance load');
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/balance?userId=${tgUserId}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.stars !== undefined) {
-          setBalance(data.stars);
-        }
-      }
-    } catch (err) {
-      console.warn('[STARS] Failed to load balance:', err);
-    }
-  }
-
   // ====== EVENTS ======
   // Listen to live balance updates from SSE
   window.addEventListener('balance:live-update', (e) => {
     if (e.detail?.stars !== undefined) {
-      console.log('[STARS] 📡 Live balance update:', e.detail.stars);
+      console.log('[STARS] 🔡 Live balance update:', e.detail.stars);
+      setBalance(e.detail.stars);
+    }
+  });
+
+  window.addEventListener('balance:loaded', (e) => {
+    if (e.detail?.stars !== undefined) {
+      console.log('[STARS] 🔥 Balance loaded:', e.detail.stars);
       setBalance(e.detail.stars);
     }
   });
 
   // ====== INIT ======
   updateUI();
-  loadBalance();
   
   console.log('[STARS] ✅ Module ready');
   console.log('[STARS] User ID:', tgUserId || 'Not authorized');

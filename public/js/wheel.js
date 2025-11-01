@@ -1,6 +1,8 @@
-// wheel.js - Исправленная система ставок с точным совпадением и проверкой баланса
+// wheel.js - TEST MODE VERSION - Тестовый режим без проверки баланса
 
 /* ===== CONFIG ===== */
+const TEST_MODE = true; // 🔥 ТЕСТОВЫЙ РЕЖИМ - ставки без проверки баланса
+
 const WHEEL_ORDER = [
   'Wild Time','1x','3x','Loot Rush','1x','7x','50&50','1x',
   '3x','11x','1x','3x','Loot Rush','1x','7x','50&50',
@@ -30,7 +32,7 @@ const LABELS = {
 
 /* ===== DOM refs ===== */
 let canvas, ctx, DPR = 1;
-let userBalance = { ton: 0, stars: 0 }; // Баланс пользователя
+let userBalance = { ton: 0, stars: 0 }; // Баланс (не используется в TEST_MODE)
 let betOverlay, historyList, countdownBox, countNumEl;
 let amountBtns = [], betTiles = [];
 
@@ -94,6 +96,12 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   if (!canvas) return;
 
+  // 🔥 ТЕСТОВЫЙ РЕЖИМ - показываем уведомление
+  if (TEST_MODE) {
+    console.log('🧪 TEST MODE ACTIVE - Unlimited betting enabled');
+    showTestModeNotification();
+  }
+
   await preloadImages();
 
   prepareCanvas();
@@ -112,6 +120,60 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 });
 
+/* ===== 🔥 НОВАЯ ФУНКЦИЯ - Уведомление о тестовом режиме ===== */
+function showTestModeNotification() {
+  const existing = document.getElementById('test-mode-toast');
+  if (existing) return;
+  
+  const toast = document.createElement('div');
+  toast.id = 'test-mode-toast';
+  toast.style.cssText = `
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.1));
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 16px;
+    padding: 12px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fbbf24;
+    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);
+    animation: testModeSlideIn 0.5s ease forwards;
+    pointer-events: none;
+  `;
+  toast.textContent = '🧪 Test Mode: Unlimited Balance';
+  
+  if (!document.getElementById('test-mode-animations')) {
+    const style = document.createElement('style');
+    style.id = 'test-mode-animations';
+    style.textContent = `
+      @keyframes testModeSlideIn {
+        from { 
+          opacity: 0;
+          transform: translateX(-50%) translateY(-20px);
+        }
+        to { 
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  document.body.appendChild(toast);
+  
+  // Убираем через 5 секунд
+  setTimeout(() => {
+    toast.style.animation = 'testModeSlideIn 0.3s ease reverse forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+}
+
 /* ===== Betting UI ===== */
 function initBettingUI(){
   const active = amountBtns.find(b => b.classList.contains('active'));
@@ -126,12 +188,14 @@ function initBettingUI(){
     });
   });
 
-  // 🔥 Слушаем обновление баланса из switch.js
+  // 🔥 Слушаем обновление баланса (только для отображения, не для проверки)
   window.addEventListener('balance:loaded', (e) => {
     if (e.detail) {
       userBalance.ton = e.detail.ton || 0;
       userBalance.stars = e.detail.stars || 0;
-      console.log('[Wheel] Balance loaded:', userBalance);
+      if (!TEST_MODE) {
+        console.log('[Wheel] Balance loaded:', userBalance);
+      }
     }
   });
 
@@ -139,7 +203,9 @@ function initBettingUI(){
     if (e.detail) {
       if (e.detail.ton !== undefined) userBalance.ton = e.detail.ton;
       if (e.detail.stars !== undefined) userBalance.stars = e.detail.stars;
-      console.log('[Wheel] Balance updated:', userBalance);
+      if (!TEST_MODE) {
+        console.log('[Wheel] Balance updated:', userBalance);
+      }
     }
   });
 
@@ -151,7 +217,7 @@ function initBettingUI(){
     }
   });
 
-  // 🔥 ОБНОВЛЕННЫЙ обработчик ставок с проверкой баланса
+  // 🔥 ОБНОВЛЕННЫЙ обработчик ставок - БЕЗ проверки баланса в TEST_MODE
   betTiles.forEach(tile => {
     tile.addEventListener('click', () => {
       if (phase !== 'betting') return;
@@ -159,19 +225,21 @@ function initBettingUI(){
       const seg = tile.dataset.seg;
       const cur = betsMap.get(seg) || 0;
       
-      // 🔥 Проверка баланса ПЕРЕД добавлением ставки
-      const balance = userBalance[currentCurrency] || 0;
-      
-      if (balance < currentAmount) {
-        // ❌ Недостаточно средств
-        tile.classList.add('insufficient-balance');
-        setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
+      // 🔥 ПРОВЕРКА БАЛАНСА ОТКЛЮЧЕНА В ТЕСТОВОМ РЕЖИМЕ
+      if (!TEST_MODE) {
+        const balance = userBalance[currentCurrency] || 0;
         
-        showInsufficientBalanceNotification();
-        return; // НЕ добавляем ставку
+        if (balance < currentAmount) {
+          // ❌ Недостаточно средств
+          tile.classList.add('insufficient-balance');
+          setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
+          
+          showInsufficientBalanceNotification();
+          return;
+        }
       }
       
-      // ✅ Достаточно средств - добавляем ставку
+      // ✅ Добавляем ставку (в тестовом режиме всегда разрешено)
       const next = currentCurrency === 'stars' 
         ? Math.round(cur + currentAmount)
         : +(cur + currentAmount).toFixed(2);
@@ -349,29 +417,55 @@ function tick(ts){
     currentAngle = decel.start + (decel.end - decel.start) * eased;
 
     if (t >= 1){
-      currentAngle = decel.end;
-      const typeFinished = decel.resultType;
-      const resolveFn = decel.resolve;
-      decel = null;
+  currentAngle = decel.end;
+  const typeFinished = decel.resultType;
+  const resolveFn = decel.resolve;
+  decel = null;
 
-      phase = 'betting';
-      omega = IDLE_OMEGA;
-      setBetPanel(true);
+  phase = 'betting';
+  omega = IDLE_OMEGA;
+  setBetPanel(true);
 
-      if (typeFinished) {
-        checkBetsAndShowResult(typeFinished);
-        setTimeout(() => {
-          pushHistory(typeFinished);
-          clearBets();
-          startCountdown(9);
-        }, 3000);
-      } else {
+  // Проверяем результат раунда
+  if (typeFinished) {
+    checkBetsAndShowResult(typeFinished);
+    
+    // 🎰 ПРОВЕРКА НА БОНУС 50&50
+    if (typeFinished === '50&50') {
+      // Запускаем бонус через 3 секунды после показа результата
+      setTimeout(async () => {
+        console.log('[Wheel] 🎰 Starting 50&50 bonus...');
+        
+        // Получаем ставку на 50&50
+        const betOn5050 = betsMap.get('50&50') || 0;
+        
+        // Запускаем бонус
+        if (window.start5050Bonus) {
+          await window.start5050Bonus(betOn5050);
+        } else {
+          console.error('[Wheel] ❌ Bonus 50&50 not loaded!');
+        }
+        
+        // После бонуса продолжаем как обычно
+        pushHistory(typeFinished);
         clearBets();
         startCountdown(9);
-      }
-
-      if (resolveFn) resolveFn();
+      }, 3000);
+    } else {
+      // Обычный результат - продолжаем через 3 секунды
+      setTimeout(() => {
+        pushHistory(typeFinished);
+        clearBets();
+        startCountdown(9);
+      }, 3000);
     }
+  } else {
+    clearBets();
+    startCountdown(9);
+  }
+
+  if (resolveFn) resolveFn();
+}
   } else if (phase === 'betting' || phase === 'accelerate') {
     currentAngle += omega * dt;
   }
@@ -380,7 +474,7 @@ function tick(ts){
   rafId = requestAnimationFrame(tick);
 }
 
-/* ===== 🔥 ОБНОВЛЕННАЯ Проверка ставок и показ результата ===== */
+/* ===== Проверка ставок и показ результата ===== */
 function checkBetsAndShowResult(resultType) {
   const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
   
@@ -400,7 +494,8 @@ function checkBetsAndShowResult(resultType) {
       betAmount: betOnResult,
       multiplier,
       winAmount,
-      totalBets
+      totalBets,
+      testMode: TEST_MODE
     });
     
     showWinNotification(winAmount);
@@ -408,12 +503,12 @@ function checkBetsAndShowResult(resultType) {
     console.log('😔 LOSS', {
       result: resultType,
       yourBets: Array.from(betsMap.entries()).map(([k,v]) => `${k}: ${v}`),
-      totalLost: totalBets
+      totalLost: totalBets,
+      testMode: TEST_MODE
     });
   }
 }
 
-/* ===== Получить множитель для типа ===== */
 function getMultiplier(type) {
   const multipliers = {
     '1x': 1,
@@ -427,7 +522,6 @@ function getMultiplier(type) {
   return multipliers[type] || 1;
 }
 
-/* ===== 🔥 НОВАЯ функция - показ только выигрыша ===== */
 function showWinNotification(winAmount) {
   const existing = document.getElementById('win-toast');
   if (existing) existing.remove();
@@ -515,7 +609,6 @@ function showWinNotification(winAmount) {
   }, 2500);
 }
 
-/* ===== 🔥 НОВАЯ функция - уведомление о недостаточном балансе ===== */
 function showInsufficientBalanceNotification() {
   const existing = document.getElementById('insufficient-balance-toast');
   if (existing) existing.remove();
@@ -820,4 +913,184 @@ function clearBets(){
 function hasBets() {
   const total = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
   return total > 0;
+
+
+
+
+
+
+
+
+
+
+
+/* ===== ИНТЕГРАЦИЯ БОНУСОВ ===== */
+
+// Проверка выпадения бонуса
+function checkBonusTrigger(resultType) {
+  console.log('[Wheel] Checking bonus trigger for:', resultType);
+  
+  // Если выпал бонус 50&50
+  if (resultType === '50&50') {
+    console.log('[Wheel] 🎰 Triggering 50&50 bonus!');
+    
+    // Запускаем бонус после задержки
+    setTimeout(() => {
+      if (window.Bonus5050) {
+        window.Bonus5050.start();
+      } else {
+        console.error('[Wheel] ❌ Bonus5050 module not loaded!');
+      }
+    }, 1500);
+  }
+  
+  // Если выпал Loot Rush
+  if (resultType === 'Loot Rush') {
+    console.log('[Wheel] 🎁 Triggering Loot Rush bonus!');
+    // TODO: Добавим позже
+  }
+  
+  // Если выпал Wild Time
+  if (resultType === 'Wild Time') {
+    console.log('[Wheel] 🔥 Triggering Wild Time bonus!');
+    // TODO: Добавим позже
+  }
+}
+
+// ====== ОБНОВИ ФУНКЦИЮ checkBetsAndShowResult ======
+// Найди эту функцию и замени на:
+
+function checkBetsAndShowResult(resultType) {
+  const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
+  
+  // 🔥 ПРОВЕРКА БОНУСА
+  const isBonusRound = ['50&50', 'Loot Rush', 'Wild Time'].includes(resultType);
+  
+  if (isBonusRound) {
+    console.log('🎰 BONUS ROUND!', resultType);
+    
+    // Показываем уведомление о бонусе
+    showBonusNotification(resultType);
+    
+    // Запускаем бонус
+    setTimeout(() => {
+      checkBonusTrigger(resultType);
+    }, 2000);
+    
+    return;
+  }
+  
+  // Обычный раунд
+  if (totalBets <= 0) {
+    console.log('No bets placed - skipping notification');
+    return;
+  }
+
+  const betOnResult = betsMap.get(resultType) || 0;
+  
+  if (betOnResult > 0) {
+    const multiplier = getMultiplier(resultType);
+    const winAmount = betOnResult * multiplier;
+    
+    console.log('🎉 WIN!', {
+      result: resultType,
+      betAmount: betOnResult,
+      multiplier,
+      winAmount,
+      totalBets,
+      testMode: TEST_MODE
+    });
+    
+    showWinNotification(winAmount);
+  } else {
+    console.log('😔 LOSS', {
+      result: resultType,
+      yourBets: Array.from(betsMap.entries()).map(([k,v]) => `${k}: ${v}`),
+      totalLost: totalBets,
+      testMode: TEST_MODE
+    });
+  }
+}
+
+// ====== НОВАЯ ФУНКЦИЯ - Уведомление о бонусе ======
+function showBonusNotification(bonusType) {
+  const existing = document.getElementById('bonus-trigger-toast');
+  if (existing) existing.remove();
+  
+  const toast = document.createElement('div');
+  toast.id = 'bonus-trigger-toast';
+  
+  toast.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    z-index: 9999;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.95), rgba(219, 39, 119, 0.95));
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 24px;
+    padding: 30px 50px;
+    font-size: 48px;
+    font-weight: 900;
+    color: white;
+    box-shadow: 
+      0 20px 60px rgba(168, 85, 247, 0.6),
+      inset 0 2px 0 rgba(255, 255, 255, 0.2);
+    animation: bonusTrigger 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    text-align: center;
+  `;
+  
+  toast.innerHTML = `
+    <div style="margin-bottom: 10px;">${bonusType}</div>
+    <div style="font-size: 18px; font-weight: 600; opacity: 0.9;">Bonus Round</div>
+  `;
+  
+  if (!document.getElementById('bonus-trigger-animations')) {
+    const style = document.createElement('style');
+    style.id = 'bonus-trigger-animations';
+    style.textContent = `
+      @keyframes bonusTrigger {
+        0% { 
+          transform: translate(-50%, -50%) scale(0) rotate(-180deg);
+          opacity: 0;
+        }
+        50% { 
+          transform: translate(-50%, -50%) scale(1.15) rotate(10deg);
+          opacity: 1;
+        }
+        70% {
+          transform: translate(-50%, -50%) scale(0.95) rotate(-5deg);
+        }
+        85% {
+          transform: translate(-50%, -50%) scale(1.05) rotate(2deg);
+        }
+        100% { 
+          transform: translate(-50%, -50%) scale(1) rotate(0deg);
+          opacity: 1;
+        }
+      }
+      
+      @keyframes bonusTriggerOut {
+        0% { 
+          transform: translate(-50%, -50%) scale(1);
+          opacity: 1;
+        }
+        100% { 
+          transform: translate(-50%, -50%) scale(1.5);
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'bonusTriggerOut 0.5s ease forwards';
+    setTimeout(() => toast.remove(), 500);
+  }, 1500);
+}
 }

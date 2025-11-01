@@ -1,4 +1,4 @@
-// public/js/tondep.js - TON Deposit Module (FIXED - NO RECURSION)
+// public/js/tondep.js - TON Deposit Module (FIXED)
 (() => {
   console.log('[TON] 🚀 Starting TON module');
 
@@ -8,9 +8,6 @@
   const MIN_DEPOSIT = 0.1;
 
   // ====== DOM ======
-  const tonPill = document.getElementById("tonPill");
-  const tonAmount = document.getElementById("tonAmount");
-  
   const popup = document.getElementById("tonDepositPopup");
   if (!popup) {
     console.error('[TON] ❌ tonDepositPopup not found!');
@@ -107,7 +104,6 @@
     popup.classList.add('deposit-popup--open');
     
     if (tc?.account) fetchWalletBalance();
-    loadBalance();
     updateUI();
     
     if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
@@ -121,7 +117,6 @@
 
   backdrop?.addEventListener('click', closePopup);
   btnClose?.addEventListener('click', closePopup);
-  tonPill?.addEventListener('click', (e) => { e.preventDefault(); openPopup(); });
 
   // ====== INPUT ======
   amountInput?.addEventListener('input', () => {
@@ -162,6 +157,8 @@
   });
 
   window.__wtTonConnect = tc;
+  window.dispatchEvent(new Event("wt-tc-ready"));
+  
   console.log('[TON] ✅ TonConnect ready');
 
   // ====== WALLET BALANCE ======
@@ -269,39 +266,38 @@
 
       // Notify server
       try {
-        console.log('[TON] 📤 Notifying server about deposit...');
+        console.log('[TON] 📤 Notifying server...');
         const notifyRes = await fetch('/api/deposit-notification', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            amount, currency: 'ton', userId: tgUserId, initData,
-            txHash: result?.boc, timestamp: Date.now()
+            amount, 
+            currency: 'ton', 
+            userId: tgUserId, 
+            initData,
+            txHash: result?.boc, 
+            timestamp: Date.now()
           })
         });
         
         if (notifyRes.ok) {
-          const notifyData = await notifyRes.json();
-          console.log('[TON] ✅ Server notification successful:', notifyData);
+          console.log('[TON] ✅ Server notified');
         } else {
           console.error('[TON] ⚠️ Server notification failed:', notifyRes.status);
         }
       } catch (err) {
-        console.error('[TON] ❌ Server notification error:', err);
+        console.error('[TON] ❌ Notification error:', err);
       }
 
       if (tg?.showPopup) {
         tg.showPopup({
           title: '✅ Success',
-          message: `Deposited ${amount} TON`,
+          message: `Deposited ${amount} TON\n\nYour balance will update automatically.`,
           buttons: [{ type: 'ok' }]
         });
       }
 
       if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-
-      // 🔥 FIX: Reload balance from server (don't update locally to avoid recursion)
-      console.log('[TON] 🔄 Reloading balance from server...');
-      await loadBalance();
 
       setTimeout(() => {
         closePopup();
@@ -322,41 +318,23 @@
     }
   });
 
-  // ====== LOAD BALANCE ======
-  async function loadBalance() {
-    try {
-      console.log('[TON] 🔄 Loading balance for user:', tgUserId);
-      const res = await fetch(`/api/balance?userId=${tgUserId}`);
-      if (res.ok) {
-        const data = await res.json();
-        console.log('[TON] 📊 Balance received:', data);
-        if (data.ton !== undefined) {
-          setBalance(data.ton);
-          // 🔥 FIX: Notify currency system WITHOUT triggering update
-          if (window.WildTimeCurrency?._setBalanceSilent) {
-            window.WildTimeCurrency._setBalanceSilent('ton', data.ton);
-          }
-        }
-      } else {
-        console.error('[TON] ❌ Balance load failed:', res.status);
-      }
-    } catch (err) {
-      console.error('[TON] ❌ Balance load error:', err);
-    }
-  }
-
   // ====== EVENTS ======
-  // 🔥 FIX: Only listen to external updates (from switch.js)
   window.addEventListener('balance:update', (e) => {
     if (e.detail?.ton !== undefined && e.detail._source !== 'tondep') {
-      console.log('[TON] 🔔 External balance update:', e.detail.ton);
+      console.log('[TON] 📢 External balance update:', e.detail.ton);
+      setBalance(e.detail.ton);
+    }
+  });
+
+  window.addEventListener('balance:loaded', (e) => {
+    if (e.detail?.ton !== undefined) {
+      console.log('[TON] 🔥 Balance loaded:', e.detail.ton);
       setBalance(e.detail.ton);
     }
   });
 
   // ====== INIT ======
   updateUI();
-  loadBalance();
   
   console.log('[TON] ✅ Ready');
 
@@ -364,9 +342,8 @@
   window.WTTonDeposit = {
     open: openPopup,
     close: closePopup,
-    setBalance: setBalance, // 🔥 FIX: Renamed from updateBalance
+    setBalance: setBalance,
     isConnected: () => !!tc?.account,
-    reloadBalance: loadBalance,
     getBalance: () => platformBalance
   };
 })();
