@@ -1,6 +1,7 @@
 // database-sqlite.js - SQLite Production Database
 import Database from 'better-sqlite3';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,6 +16,19 @@ const DB_PATH = process.env.DB_PATH ||
 
 console.log('[DB] 🚀 Initializing SQLite database');
 console.log('[DB] 📂 Path:', DB_PATH);
+
+// 🔧 Create directory if it doesn't exist
+const dbDir = path.dirname(DB_PATH);
+if (!fs.existsSync(dbDir)) {
+  console.log('[DB] 📁 Creating directory:', dbDir);
+  try {
+    fs.mkdirSync(dbDir, { recursive: true });
+    console.log('[DB] ✅ Directory created successfully');
+  } catch (err) {
+    console.error('[DB] ❌ Failed to create directory:', err);
+    throw err;
+  }
+}
 
 // Create database connection
 const db = new Database(DB_PATH);
