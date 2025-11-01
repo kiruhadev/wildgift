@@ -763,31 +763,36 @@ app.post("/api/round/place-bet", async (req, res) => {
 // 🎁 ДАТЬ ТЕСТОВЫЕ ДЕНЬГИ (только в development)
 app.post("/api/test/give-balance", async (req, res) => {
   try {
-    // 🔒 ЗАЩИТА: работает только в development
     if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({
-        ok: false,
-        error: 'This endpoint is disabled in production'
-      });
+      return res.status(403).json({ ok: false, error: 'This endpoint is disabled in production' });
     }
 
     const { userId, ton, stars } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({
-        ok: false,
-        error: 'User ID is required'
-      });
+    const uid = parseInt(userId, 10);
+    if (!userId || Number.isNaN(uid)) {
+      return res.status(400).json({ ok: false, error: 'Numeric user ID is required' });
     }
 
-    console.log('[TEST] 🎁 Giving test balance:', { userId, ton, stars });
+    // ensure user exists for FK
+    try {
+      db.saveUser({
+        id: uid,
+        is_bot: false,
+        first_name: 'Test',
+        last_name: '',
+        username: 'tester',
+        language_code: 'en',
+        is_premium: false
+      });
+    } catch (e) { /* ok: уже есть */ }
+
+    console.log('[TEST] 🎁 Giving test balance:', { userId: uid, ton, stars });
 
     let results = {};
 
-    // Дать TON
     if (ton && ton > 0) {
       const newTonBalance = db.updateBalance(
-        userId,
+        uid,
         'ton',
         parseFloat(ton),
         'test',
@@ -798,12 +803,11 @@ app.post("/api/test/give-balance", async (req, res) => {
       console.log('[TEST] ✅ Added TON:', newTonBalance);
     }
 
-    // Дать Stars
     if (stars && stars > 0) {
       const newStarsBalance = db.updateBalance(
-        userId,
+        uid,
         'stars',
-        parseInt(stars),
+        parseInt(stars, 10),
         'test',
         '🧪 Test Stars deposit',
         { test: true }
@@ -812,12 +816,11 @@ app.post("/api/test/give-balance", async (req, res) => {
       console.log('[TEST] ✅ Added Stars:', newStarsBalance);
     }
 
-    // Отправить обновление через SSE
     if (ton || stars) {
-      broadcastBalanceUpdate(userId, 'ton', results.ton || 0);
+      broadcastBalanceUpdate(uid, 'ton', results.ton || 0);
     }
 
-    const finalBalance = db.getUserBalance(userId);
+    const finalBalance = db.getUserBalance(uid);
 
     res.json({
       ok: true,
@@ -834,10 +837,7 @@ app.post("/api/test/give-balance", async (req, res) => {
 
   } catch (error) {
     console.error('[TEST] Error giving balance:', error);
-    res.status(500).json({
-      ok: false,
-      error: error.message || 'Failed to give test balance'
-    });
+    res.status(500).json({ ok: false, error: error.message || 'Failed to give test balance' });
   }
 });
 
@@ -845,118 +845,101 @@ app.post("/api/test/give-balance", async (req, res) => {
 app.post("/api/test/reset-balance", async (req, res) => {
   try {
     if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({
-        ok: false,
-        error: 'This endpoint is disabled in production'
-      });
+      return res.status(403).json({ ok: false, error: 'This endpoint is disabled in production' });
     }
 
     const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({
-        ok: false,
-        error: 'User ID is required'
-      });
+    const uid = parseInt(userId, 10);
+    if (!userId || Number.isNaN(uid)) {
+      return res.status(400).json({ ok: false, error: 'Numeric user ID is required' });
     }
 
-    console.log('[TEST] 🔄 Resetting balance for user:', userId);
+    // ensure user exists (на случай чистой БД)
+    try {
+      db.saveUser({
+        id: uid,
+        is_bot: false,
+        first_name: 'Test',
+        last_name: '',
+        username: 'tester',
+        language_code: 'en',
+        is_premium: false
+      });
+    } catch (e) {}
 
-    // Установить баланс в 0
-    db.updateBalance(userId, 'ton', 0, 'test', '🧪 Balance reset', { test: true, reset: true });
-    db.updateBalance(userId, 'stars', 0, 'test', '🧪 Balance reset', { test: true, reset: true });
+    console.log('[TEST] 🔄 Resetting balance for user:', uid);
 
-    // Отправить обновление через SSE
-    broadcastBalanceUpdate(userId, 'ton', 0);
+    db.updateBalance(uid, 'ton', 0, 'test', '🧪 Balance reset', { test: true, reset: true });
+    db.updateBalance(uid, 'stars', 0, 'test', '🧪 Balance reset', { test: true, reset: true });
 
-    res.json({
-      ok: true,
-      message: 'Balance reset to 0',
-      balance: {
-        ton: 0,
-        stars: 0
-      }
-    });
+    broadcastBalanceUpdate(uid, 'ton', 0);
 
+    res.json({ ok: true, message: 'Balance reset to 0', balance: { ton: 0, stars: 0 } });
   } catch (error) {
     console.error('[TEST] Error resetting balance:', error);
-    res.status(500).json({
-      ok: false,
-      error: error.message || 'Failed to reset balance'
-    });
+    res.status(500).json({ ok: false, error: error.message || 'Failed to reset balance' });
   }
 });
+
 
 // 💰 УСТАНОВИТЬ ТОЧНЫЙ БАЛАНС (только в development)
 app.post("/api/test/set-balance", async (req, res) => {
   try {
     if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({
-        ok: false,
-        error: 'This endpoint is disabled in production'
-      });
+      return res.status(403).json({ ok: false, error: 'This endpoint is disabled in production' });
     }
 
     const { userId, ton, stars } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({
-        ok: false,
-        error: 'User ID is required'
-      });
+    const uid = parseInt(userId, 10);
+    if (!userId || Number.isNaN(uid)) {
+      return res.status(400).json({ ok: false, error: 'Numeric user ID is required' });
     }
 
-    console.log('[TEST] 💰 Setting exact balance:', { userId, ton, stars });
+    // ensure user exists (для FK)
+    try {
+      db.saveUser({
+        id: uid,
+        is_bot: false,
+        first_name: 'Test',
+        last_name: '',
+        username: 'tester',
+        language_code: 'en',
+        is_premium: false
+      });
+    } catch (e) {}
 
-    const currentBalance = db.getUserBalance(userId);
+    console.log('[TEST] 💰 Setting exact balance:', { userId: uid, ton, stars });
 
+    const currentBalance = db.getUserBalance(uid);
     let results = {};
 
-    // Установить TON
     if (ton !== undefined) {
       const currentTon = parseFloat(currentBalance.ton_balance) || 0;
-      const diff = ton - currentTon;
-      
+      const diff = parseFloat(ton) - currentTon;
       if (diff !== 0) {
-        const newTonBalance = db.updateBalance(
-          userId,
-          'ton',
-          diff,
-          'test',
-          `🧪 Set TON balance to ${ton}`,
-          { test: true, setBalance: true }
+        results.ton = db.updateBalance(
+          uid, 'ton', diff, 'test', `🧪 Set TON balance to ${ton}`, { test: true, setBalance: true }
         );
-        results.ton = newTonBalance;
       } else {
         results.ton = currentTon;
       }
     }
 
-    // Установить Stars
     if (stars !== undefined) {
       const currentStars = parseInt(currentBalance.stars_balance) || 0;
-      const diff = stars - currentStars;
-      
+      const diff = parseInt(stars, 10) - currentStars;
       if (diff !== 0) {
-        const newStarsBalance = db.updateBalance(
-          userId,
-          'stars',
-          diff,
-          'test',
-          `🧪 Set Stars balance to ${stars}`,
-          { test: true, setBalance: true }
+        results.stars = db.updateBalance(
+          uid, 'stars', diff, 'test', `🧪 Set Stars balance to ${stars}`, { test: true, setBalance: true }
         );
-        results.stars = newStarsBalance;
       } else {
         results.stars = currentStars;
       }
     }
 
-    // Отправить обновление через SSE
-    broadcastBalanceUpdate(userId, 'ton', results.ton || 0);
+    broadcastBalanceUpdate(uid, 'ton', results.ton || 0);
 
-    const finalBalance = db.getUserBalance(userId);
-
+    const finalBalance = db.getUserBalance(uid);
     res.json({
       ok: true,
       message: 'Balance set successfully',
@@ -965,15 +948,12 @@ app.post("/api/test/set-balance", async (req, res) => {
         stars: parseInt(finalBalance.stars_balance) || 0
       }
     });
-
   } catch (error) {
     console.error('[TEST] Error setting balance:', error);
-    res.status(500).json({
-      ok: false,
-      error: error.message || 'Failed to set balance'
-    });
+    res.status(500).json({ ok: false, error: error.message || 'Failed to set balance' });
   }
 });
+
 
 // 📊 ПОЛУЧИТЬ ИНФОРМАЦИЮ О ТЕСТОВОМ РЕЖИМЕ
 app.get("/api/test/info", (req, res) => {

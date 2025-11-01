@@ -995,7 +995,32 @@ body:has(#wheelPage.page-active) .history.wheel-only {
   </div>
 </div>
 
+<!-- Глобальный userId:  /js/*.js -->
+<script>
+  (function () {
+    const tg = window.Telegram?.WebApp;
+    // Единый id (подставь тот, что видишь в checkBalance): 123456789
+    const uid = String(tg?.initDataUnsafe?.user?.id || 1142079504);
 
+    // Сделаем его доступным всем: через глобал и localStorage
+    window.AppUser = { id: uid };
+    try { localStorage.setItem('uid', uid); } catch {}
+
+    // (необязательно, но удобно) сразу подпишемся на SSE и обновим пилюлю баланса
+    try {
+      const es = new EventSource(`/api/balance/stream?userId=${uid}`);
+      es.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          const el = document.getElementById('tonAmount'); // элемент в топбаре
+          if (el && typeof data.ton !== 'undefined') {
+            el.textContent = Number(data.ton).toFixed(2);
+          }
+        } catch {}
+      };
+    } catch {}
+  })();
+</script>
 
 
 
@@ -1019,14 +1044,14 @@ body:has(#wheelPage.page-active) .history.wheel-only {
 
 
 
-
+  <!--🧪 TEST HELPERS - Удобные функции для тестирования в консоли браузера -->
 
   <script>
     // 🧪 TEST HELPERS - Удобные функции для тестирования в консоли браузера
     (function() {
       if (window.location.hostname === 'localhost' || window.location.hostname.includes('test')) {
         const tg = window.Telegram?.WebApp;
-        const userId = tg?.initDataUnsafe?.user?.id || 'guest';
+        const userId = tg?.initDataUnsafe?.user?.id ||1142079504;
         
         // 🎁 Дать себе тестовые деньги
         window.giveMoney = async function(ton = 100, stars = 1000) {
