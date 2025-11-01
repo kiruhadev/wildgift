@@ -1,8 +1,8 @@
-// public/js/tondep.js - TON Deposit Module (FIXED BALANCE)
+// public/js/tondep.js - TON Deposit Module (FIXED - NO RECURSION)
 (() => {
   console.log('[TON] 🚀 Starting TON module');
 
-  // ====== КОНФИГ ======
+  // ====== CONFIG ======
   const MANIFEST_URL = `${location.origin}/tonconnect-manifest.json`;
   const PROJECT_TON_ADDRESS = "UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J";
   const MIN_DEPOSIT = 0.1;
@@ -31,7 +31,7 @@
   const tgUserId = tg?.initDataUnsafe?.user?.id || "guest";
   const initData = tg?.initData || "";
 
-  // ====== СОСТОЯНИЕ ======
+  // ====== STATE ======
   let platformBalance = 0;
 
   // ====== HELPERS ======
@@ -60,7 +60,6 @@
   function validateAmount() {
     const amount = normalize(amountInput?.value);
     
-    // Очищаем предыдущее состояние
     if (inputWrapper) {
       inputWrapper.classList.remove('error', 'success');
     }
@@ -69,16 +68,13 @@
     }
     
     if (amount >= MIN_DEPOSIT) {
-      // Успех
       if (inputWrapper) inputWrapper.classList.add('success');
       if (btnDeposit && tc?.account) btnDeposit.disabled = false;
       return true;
     } else if (amount > 0) {
-      // Меньше минимума
       if (btnDeposit) btnDeposit.disabled = true;
       return false;
     } else {
-      // Пустое
       if (btnDeposit) btnDeposit.disabled = true;
       return false;
     }
@@ -88,8 +84,6 @@
     if (inputWrapper) {
       inputWrapper.classList.remove('success');
       inputWrapper.classList.add('error');
-      
-      // Убираем тряску через 400ms
       setTimeout(() => {
         inputWrapper.classList.remove('error');
       }, 400);
@@ -97,8 +91,6 @@
     
     if (errorNotification) {
       errorNotification.hidden = false;
-      
-      // Скрываем через 3 секунды
       setTimeout(() => {
         errorNotification.hidden = true;
       }, 3000);
@@ -114,19 +106,15 @@
     console.log('[TON] 📂 Open popup');
     popup.classList.add('deposit-popup--open');
     
-    // Загружаем баланс кошелька если подключен
     if (tc?.account) fetchWalletBalance();
-    
-    // ВАЖНО: Обновляем баланс платформы при открытии
     loadBalance();
-    
     updateUI();
+    
     if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
   }
 
   function closePopup() {
     popup.classList.remove('deposit-popup--open');
-    // Очищаем валидацию при закрытии
     if (inputWrapper) inputWrapper.classList.remove('error', 'success');
     if (errorNotification) errorNotification.hidden = true;
   }
@@ -225,17 +213,9 @@
   }
 
   // ====== UPDATE BALANCE ======
-  function updateBalance(balance) {
+  function setBalance(balance) {
     platformBalance = parseFloat(balance) || 0;
-    if (tonAmount) {
-      tonAmount.textContent = platformBalance.toFixed(2);
-    }
-    console.log('[TON] 💰 Balance updated:', platformBalance.toFixed(2));
-    
-    // Уведомляем систему валют об обновлении
-    window.dispatchEvent(new CustomEvent('balance:update', {
-      detail: { ton: platformBalance }
-    }));
+    console.log('[TON] 💰 Balance set:', platformBalance.toFixed(2));
   }
 
   // ====== CONNECT ======
@@ -263,7 +243,6 @@
     
     const amount = normalize(amountInput?.value);
     
-    // Валидация перед отправкой
     if (amount < MIN_DEPOSIT) {
       showValidationError();
       return;
@@ -320,11 +299,7 @@
 
       if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
 
-      // Обновляем локальный баланс
-      const newBalance = platformBalance + amount;
-      updateBalance(newBalance);
-      
-      // Загружаем актуальный баланс с сервера
+      // 🔥 FIX: Reload balance from server (don't update locally to avoid recursion)
       console.log('[TON] 🔄 Reloading balance from server...');
       await loadBalance();
 
@@ -356,11 +331,11 @@
         const data = await res.json();
         console.log('[TON] 📊 Balance received:', data);
         if (data.ton !== undefined) {
-          updateBalance(data.ton);
-          // Уведомляем систему о загрузке баланса
-          window.dispatchEvent(new CustomEvent('balance:loaded', {
-            detail: { ton: data.ton, stars: data.stars }
-          }));
+          setBalance(data.ton);
+          // 🔥 FIX: Notify currency system WITHOUT triggering update
+          if (window.WildTimeCurrency?._setBalanceSilent) {
+            window.WildTimeCurrency._setBalanceSilent('ton', data.ton);
+          }
         }
       } else {
         console.error('[TON] ❌ Balance load failed:', res.status);
@@ -371,15 +346,16 @@
   }
 
   // ====== EVENTS ======
+  // 🔥 FIX: Only listen to external updates (from switch.js)
   window.addEventListener('balance:update', (e) => {
-    console.log('[TON] 🔔 Balance update event:', e.detail);
-    if (e.detail?.ton !== undefined) updateBalance(e.detail.ton);
+    if (e.detail?.ton !== undefined && e.detail._source !== 'tondep') {
+      console.log('[TON] 🔔 External balance update:', e.detail.ton);
+      setBalance(e.detail.ton);
+    }
   });
 
   // ====== INIT ======
   updateUI();
-  
-  // ВАЖНО: Загружаем баланс сразу при старте
   loadBalance();
   
   console.log('[TON] ✅ Ready');
@@ -388,9 +364,9 @@
   window.WTTonDeposit = {
     open: openPopup,
     close: closePopup,
-    updateBalance,
+    setBalance: setBalance, // 🔥 FIX: Renamed from updateBalance
     isConnected: () => !!tc?.account,
-    reloadBalance: loadBalance, // Добавляем метод для перезагрузки
-    getBalance: () => platformBalance // Добавляем геттер баланса
+    reloadBalance: loadBalance,
+    getBalance: () => platformBalance
   };
 })();

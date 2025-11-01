@@ -1,0 +1,15 @@
+{
+  "users": {},
+  "balances": {
+    "guest": {
+      "telegram_id": null,
+      "ton_balance": 0,
+      "stars_balance": 0,
+      "updated_at": 1761989909
+    }
+  },
+  "transactions": [],
+  "bets": [],
+  "nextTransactionId": 1,
+  "nextBetId": 1
+}

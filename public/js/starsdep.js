@@ -1,4 +1,4 @@
-// public/js/starsdep.js - Stars Purchase Module (UPDATED VERSION)
+// public/js/starsdep.js - Stars Purchase Module (FIXED - NO RECURSION)
 (() => {
   console.log('[STARS] ⭐ Starting Stars module');
 
@@ -35,7 +35,6 @@
   function validateAmount() {
     const amount = parseInt(amountInput?.value) || 0;
     
-    // Очищаем предыдущее состояние
     if (inputWrapper) {
       inputWrapper.classList.remove('error', 'success');
     }
@@ -44,16 +43,13 @@
     }
     
     if (amount >= MIN_STARS) {
-      // Успех
       if (inputWrapper) inputWrapper.classList.add('success');
       if (btnBuy) btnBuy.disabled = false;
       return true;
     } else if (amount > 0) {
-      // Меньше минимума
       if (btnBuy) btnBuy.disabled = true;
       return false;
     } else {
-      // Пустое
       if (btnBuy) btnBuy.disabled = true;
       return false;
     }
@@ -63,8 +59,6 @@
     if (inputWrapper) {
       inputWrapper.classList.remove('success');
       inputWrapper.classList.add('error');
-      
-      // Убираем тряску через 400ms
       setTimeout(() => {
         inputWrapper.classList.remove('error');
       }, 400);
@@ -72,8 +66,6 @@
     
     if (errorNotification) {
       errorNotification.hidden = false;
-      
-      // Скрываем через 3 секунды
       setTimeout(() => {
         errorNotification.hidden = true;
       }, 3000);
@@ -94,7 +86,6 @@
 
   function closePopup() {
     popup.classList.remove('deposit-popup--open');
-    // Очищаем валидацию при закрытии
     if (inputWrapper) inputWrapper.classList.remove('error', 'success');
     if (errorNotification) errorNotification.hidden = true;
   }
@@ -124,15 +115,9 @@
   }
 
   // ====== UPDATE BALANCE ======
-  function updateBalance(balance) {
-    platformBalance = balance;
-    
-    // Обновляем отображение в topbar через систему переключения валюты
-    if (window.WildTimeCurrency) {
-      window.WildTimeCurrency.setBalance('stars', balance);
-    }
-    
-    console.log('[STARS] 💰 Balance:', balance);
+  function setBalance(balance) {
+    platformBalance = parseInt(balance) || 0;
+    console.log('[STARS] 💰 Balance set:', platformBalance);
   }
 
   // ====== CREATE INVOICE ======
@@ -190,7 +175,6 @@
 
     const amount = parseInt(amountInput?.value) || 0;
     
-    // Валидация перед отправкой
     if (amount < MIN_STARS) {
       showValidationError();
       return;
@@ -224,20 +208,17 @@
     btnBuy.textContent = 'Creating invoice...';
 
     try {
-      // Create invoice
       const invoiceData = await createInvoice(amount);
       
       btnBuy.textContent = 'Opening payment...';
       console.log('[STARS] 🎫 Opening invoice:', invoiceData.invoiceLink);
 
-      // Open invoice
       tg.openInvoice(invoiceData.invoiceLink, (status) => {
         console.log('[STARS] 📋 Payment status:', status);
 
         if (status === 'paid') {
           console.log('[STARS] ✅ Payment successful!');
 
-          // Notify server about successful payment
           fetch('/api/deposit-notification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -251,7 +232,6 @@
             })
           }).catch(err => console.warn('[STARS] Notification failed:', err));
 
-          // Show success message
           if (tg?.showPopup) {
             tg.showPopup({
               title: '✅ Success',
@@ -264,10 +244,10 @@
 
           if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
 
-          // Update balance
-          updateBalance(platformBalance + amount);
+          // 🔥 FIX: Let server update balance, we'll reload it
+          console.log('[STARS] 🔄 Reloading balance from server...');
+          loadBalance();
 
-          // Close popup and reset
           setTimeout(() => {
             closePopup();
             if (amountInput) amountInput.value = '';
@@ -337,7 +317,11 @@
       if (res.ok) {
         const data = await res.json();
         if (data.stars !== undefined) {
-          updateBalance(data.stars);
+          setBalance(data.stars);
+          // 🔥 FIX: Notify currency system WITHOUT triggering update
+          if (window.WildTimeCurrency?._setBalanceSilent) {
+            window.WildTimeCurrency._setBalanceSilent('stars', data.stars);
+          }
         }
       }
     } catch (err) {
@@ -346,9 +330,11 @@
   }
 
   // ====== EVENTS ======
+  // 🔥 FIX: Only listen to external updates (from switch.js)
   window.addEventListener('balance:update', (e) => {
-    if (e.detail?.stars !== undefined) {
-      updateBalance(e.detail.stars);
+    if (e.detail?.stars !== undefined && e.detail._source !== 'starsdep') {
+      console.log('[STARS] 🔔 External balance update:', e.detail.stars);
+      setBalance(e.detail.stars);
     }
   });
 
@@ -364,12 +350,11 @@
   window.WTStarsDeposit = {
     open: openPopup,
     close: closePopup,
-    updateBalance,
+    setBalance: setBalance, // 🔥 FIX: Renamed from updateBalance
     isAvailable: () => !!tg?.openInvoice && !!tgUserId,
     getBalance: () => platformBalance
   };
 
-  // Debug info
   setTimeout(() => {
     console.log('[STARS] 🔍 Status check:', {
       module: 'Ready',
