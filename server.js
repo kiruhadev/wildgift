@@ -1,6 +1,4 @@
-// server.js
-// Node 18+ (fetch встроен). ESM ("type": "module" в package.json).
-
+// server.js - ИСПРАВЛЕННАЯ ВЕРСИЯ
 import express from "express";
 import dotenv from "dotenv";
 import path from "path";
@@ -26,9 +24,9 @@ app.set("trust proxy", true);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// --- статика из ./public (иконки, index.html, css, js)
+// --- статика из ./public
 app.use(express.static(path.join(__dirname, "public"), {
-  extensions: ["html"], // / -> index.html
+  extensions: ["html"],
   setHeaders: (res, filePath) => {
     if (filePath.endsWith(".json")) {
       res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -52,7 +50,7 @@ app.get("/tonconnect-manifest.json", (req, res) => {
   }));
 });
 
-// ====== Telegram avatar proxy (без CORS/404) ======
+// ====== Telegram avatar proxy ======
 app.get("/api/tg/photo/:userId", async (req, res) => {
   try {
     const token = process.env.BOT_TOKEN;
@@ -77,44 +75,150 @@ app.get("/api/tg/photo/:userId", async (req, res) => {
     res.setHeader("Content-Type", fileResp.headers.get("content-type") || "image/jpeg");
     fileResp.body.pipe(res);
   } catch (e) {
-    console.error(e);
+    console.error('[Avatar]', e);
     res.status(500).send("error");
   }
 });
 
-// ====== DEPOSIT (TON) ======
-app.post("/deposit", async (req, res) => {
+// ====== DEPOSIT NOTIFICATION - ИСПРАВЛЕНО ======
+app.post("/api/deposit-notification", async (req, res) => {
   try {
-    const { amount, initData } = req.body || {};
-    const num = Number(amount);
-    if (!Number.isFinite(num) || num < 0.5) {
-      return res.status(400).json({ ok: false, error: "Minimum deposit 0.5 TON" });
+    const { amount, currency, userId, txHash, timestamp, initData } = req.body;
+    
+    console.log('[Deposit] Notification received:', {
+      amount,
+      currency,
+      userId,
+      txHash: txHash?.slice(0, 10) + '...',
+      timestamp
+    });
+
+    // Валидация
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: 'User ID required' });
     }
 
-    const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
-    if (!check.ok) return res.status(401).json({ ok: false, error: "unauthorized" });
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ ok: false, error: 'Invalid amount' });
+    }
 
+    if (!currency || !['ton', 'stars'].includes(currency)) {
+      return res.status(400).json({ ok: false, error: 'Invalid currency' });
+    }
+
+    // Извлекаем данные пользователя из initData
     let user = null;
-    if (check.params.user) {
-      try { user = JSON.parse(check.params.user); } catch {}
-    }
-    const chatId = user?.id;
-
-    if (process.env.BOT_TOKEN && chatId) {
-      await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: `✅ Deposit request sent: ${num} TON\nPlease confirm in your wallet.`
-        })
-      }).catch(() => {});
+    if (initData) {
+      const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
+      if (check.ok && check.params.user) {
+        try { 
+          user = JSON.parse(check.params.user);
+          // Сохраняем пользователя в БД
+          db.saveUser(user);
+          console.log('[Deposit] User saved:', user.id);
+        } catch (err) {
+          console.error('[Deposit] Failed to parse user:', err);
+        }
+      }
     }
 
-    res.json({ ok: true, amount: num, userId: chatId });
-  } catch (e) {
-    console.error("deposit error:", e);
-    res.status(500).json({ ok: false, error: "server_error" });
+    // 🔥 КРИТИЧНО: Обрабатываем в зависимости от валюты
+    try {
+      if (currency === 'ton') {
+        const newBalance = db.updateBalance(
+          userId,
+          'ton',
+          parseFloat(amount),
+          'deposit',
+          txHash ? `TON deposit ${txHash.slice(0, 10)}...` : 'TON deposit',
+          { txHash }
+        );
+        
+        console.log('[Deposit] ✅ TON balance updated:', { userId, newBalance });
+        
+        // Отправляем уведомление
+        if (process.env.BOT_TOKEN) {
+          await sendTelegramMessage(userId, `✅ Deposit confirmed!\n\nYou received ${amount} TON`);
+        }
+        
+        // Возвращаем успех СРАЗУ
+        return res.json({ 
+          ok: true, 
+          message: 'TON deposit processed',
+          newBalance: newBalance
+        });
+        
+      } else if (currency === 'stars') {
+        const newBalance = db.updateBalance(
+          userId,
+          'stars',
+          parseInt(amount),
+          'deposit',
+          'Stars payment',
+          { invoiceId: txHash }
+        );
+        
+        console.log('[Deposit] ✅ Stars balance updated:', { userId, newBalance });
+        
+        // Возвращаем успех СРАЗУ
+        return res.json({ 
+          ok: true, 
+          message: 'Stars deposit processed',
+          newBalance: newBalance
+        });
+      }
+      
+    } catch (err) {
+      console.error('[Deposit] ❌ Error updating balance:', err);
+      return res.status(500).json({ 
+        ok: false, 
+        error: 'Failed to update balance',
+        details: err.message 
+      });
+    }
+
+  } catch (error) {
+    console.error('[Deposit] ❌ Error:', error);
+    res.status(500).json({ 
+      ok: false, 
+      error: error.message || 'Internal server error'
+    });
+  }
+});
+
+// ====== BALANCE API - ИСПРАВЛЕНО ======
+app.get("/api/balance", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'User ID is required'
+      });
+    }
+
+    console.log('[Balance] Request for user:', userId);
+
+    // Получаем баланс из БД
+    const balance = db.getUserBalance(userId);
+
+    console.log('[Balance] ✅ Retrieved:', balance);
+
+    res.json({
+      ok: true,
+      userId: parseInt(userId),
+      ton: parseFloat(balance.ton_balance) || 0,
+      stars: parseInt(balance.stars_balance) || 0,
+      updatedAt: balance.updated_at
+    });
+
+  } catch (error) {
+    console.error('[Balance] ❌ Error:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message || 'Failed to get balance'
+    });
   }
 });
 
@@ -200,7 +304,7 @@ app.post("/api/stars/create-invoice", async (req, res) => {
   }
 });
 
-// Webhook для обработки successful_payment и pre_checkout_query
+// ====== STARS WEBHOOK ======
 app.post("/api/stars/webhook", async (req, res) => {
   try {
     const update = req.body;
@@ -256,25 +360,16 @@ app.post("/api/stars/webhook", async (req, res) => {
           { invoiceId: payment.invoice_payload }
         );
 
-        console.log('[Stars Webhook] Balance updated:', { userId, newBalance });
+        console.log('[Stars Webhook] ✅ Balance updated:', { userId, newBalance });
+        
+        // Отправляем подтверждение пользователю
+        await sendTelegramMessage(
+          userId, 
+          `✅ Payment successful!\n\nYou received ${payment.total_amount} ⭐ Stars`
+        );
+        
       } catch (err) {
-        console.error('[Stars Webhook] Error updating balance:', err);
-      }
-
-      // Отправляем подтверждение пользователю
-      if (process.env.BOT_TOKEN) {
-        await fetch(
-          `https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: userId,
-              text: `✅ Payment successful!\n\nYou received ${payment.total_amount} ⭐ Stars`,
-              parse_mode: 'HTML'
-            })
-          }
-        ).catch(err => console.error('[Stars Webhook] Error sending confirmation:', err));
+        console.error('[Stars Webhook] ❌ Error updating balance:', err);
       }
 
       res.json({ ok: true });
@@ -283,131 +378,8 @@ app.post("/api/stars/webhook", async (req, res) => {
     }
 
   } catch (error) {
-    console.error('[Stars Webhook] Error processing webhook:', error);
+    console.error('[Stars Webhook] ❌ Error processing webhook:', error);
     res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-app.post("/api/deposit-notification", async (req, res) => {
-  try {
-    const { amount, currency, userId, txHash, timestamp, initData } = req.body;
-    
-    console.log('[Deposit] Notification received:', {
-      amount,
-      currency,
-      userId,
-      txHash,
-      timestamp
-    });
-
-    if (!userId) {
-      return res.status(400).json({ ok: false, error: 'User ID required' });
-    }
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ ok: false, error: 'Invalid amount' });
-    }
-
-    // Если есть initData, извлекаем данные пользователя
-    let user = null;
-    if (initData) {
-      const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
-      if (check.ok && check.params.user) {
-        try { 
-          user = JSON.parse(check.params.user); 
-          // Сохраняем пользователя в БД
-          db.saveUser(user);
-        } catch {}
-      }
-    }
-
-    // Начисляем баланс в зависимости от валюты
-    if (currency === 'ton') {
-      try {
-        const newBalance = db.updateBalance(
-          userId,
-          'ton',
-          parseFloat(amount),
-          'deposit',
-          txHash ? `TON deposit ${txHash.slice(0, 10)}...` : 'TON deposit',
-          { txHash }
-        );
-        
-        console.log('[Deposit] TON balance updated:', { userId, newBalance });
-        
-        // Отправляем уведомление пользователю
-        if (process.env.BOT_TOKEN) {
-          await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: userId,
-              text: `✅ Deposit confirmed!\n\nYou received ${amount} TON`,
-              parse_mode: 'HTML'
-            })
-          }).catch(err => console.error('[Deposit] Error sending confirmation:', err));
-        }
-        
-      } catch (err) {
-        console.error('[Deposit] Error updating TON balance:', err);
-        return res.status(500).json({ ok: false, error: 'Failed to update balance' });
-      }
-      
-    } else if (currency === 'stars') {
-      try {
-        const newBalance = db.updateBalance(
-          userId,
-          'stars',
-          parseInt(amount),
-          'deposit',
-          'Stars payment',
-          { invoiceId: txHash }
-        );
-        
-        console.log('[Deposit] Stars balance updated:', { userId, newBalance });
-        
-      } catch (err) {
-        console.error('[Deposit] Error updating Stars balance:', err);
-        return res.status(500).json({ ok: false, error: 'Failed to update balance' });
-      }
-    }
-
-    res.json({ ok: true, message: 'Deposit processed successfully' });
-  } catch (error) {
-    console.error('[Deposit] Error:', error);
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// ====== BALANCE API ======
-app.get("/api/balance", async (req, res) => {
-  try {
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({
-        ok: false,
-        error: 'User ID is required'
-      });
-    }
-
-    // Получаем баланс из БД
-    const balance = db.getUserBalance(userId);
-
-    res.json({
-      ok: true,
-      userId: parseInt(userId),
-      ton: balance.ton_balance || 0,
-      stars: balance.stars_balance || 0,
-      updatedAt: balance.updated_at
-    });
-
-  } catch (error) {
-    console.error('[Balance] Error:', error);
-    res.status(500).json({
-      ok: false,
-      error: error.message || 'Failed to get balance'
-    });
   }
 });
 
@@ -530,18 +502,14 @@ app.get("/api/user/transactions", async (req, res) => {
   }
 });
 
-// ====== WHEEL ROUND API - ИСПРАВЛЕНО! ======
+// ====== WHEEL ROUND API - ИСПРАВЛЕНО ======
 app.get("/api/round/start", (req, res) => {
   try {
-    // Генерируем случайный индекс сектора
     const sliceIndex = Math.floor(Math.random() * WHEEL_ORDER.length);
-    
-    // Получаем тип из порядка колеса
     const type = WHEEL_ORDER[sliceIndex];
     
     console.log('[Round API] Generated:', { sliceIndex, type });
     
-    // Возвращаем правильную структуру
     res.json({
       ok: true,
       sliceIndex: sliceIndex,
@@ -558,7 +526,7 @@ app.get("/api/round/start", (req, res) => {
   }
 });
 
-// ====== Проверка ставок (опционально) ======
+// ====== Проверка ставок ======
 app.post("/api/round/place-bet", async (req, res) => {
   try {
     const { bets, currency, roundId, initData } = req.body || {};
@@ -612,7 +580,7 @@ app.post("/api/round/place-bet", async (req, res) => {
       });
     }
 
-    // Создаем ставку в БД (это спишет баланс)
+    // Создаем ставку в БД
     const betId = db.createBet(userId, roundId || `round_${Date.now()}`, bets, totalAmount, currency);
 
     // Получаем новый баланс
@@ -641,7 +609,7 @@ app.post("/api/round/place-bet", async (req, res) => {
   }
 });
 
-// ====== SPA fallback: все прочие GET отдать index.html ======
+// ====== SPA fallback ======
 app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api") || req.path === "/tonconnect-manifest.json") {
     return next();
@@ -662,14 +630,13 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`
-╔═══════════════════════════════════════╗
+╔═════════════════════════════════════════╗
 ║   🎮 WildGift Server Running          ║
 ║   Port: ${PORT}                           ║
 ║   Environment: ${process.env.NODE_ENV || 'development'}      ║
-╚═══════════════════════════════════════╝
+╚═════════════════════════════════════════╝
   `);
   
-  // Проверка Bot Token
   if (!process.env.BOT_TOKEN) {
     console.warn('⚠️  WARNING: BOT_TOKEN not set in .env');
     console.warn('   Stars payments will not work!');
@@ -677,10 +644,8 @@ app.listen(PORT, () => {
     console.log('✅ BOT_TOKEN configured');
   }
   
-  // Проверка конфигурации колеса
   console.log(`✅ Wheel configured with ${WHEEL_ORDER.length} segments`);
 });
-
 
 // ========== HELPERS ==========
 function baseUrlFrom(req) {
@@ -717,5 +682,24 @@ function verifyInitData(initDataStr, botToken, maxAgeSeconds = 300) {
     return { ok, params: Object.fromEntries(params.entries()) };
   } catch {
     return { ok: false, params: {} };
+  }
+}
+
+// Отправка сообщения в Telegram
+async function sendTelegramMessage(chatId, text) {
+  if (!process.env.BOT_TOKEN) return;
+  
+  try {
+    await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'HTML'
+      })
+    });
+  } catch (err) {
+    console.error('[Telegram] Failed to send message:', err);
   }
 }

@@ -1,30 +1,81 @@
 # Node.js
 node_modules/
-npm-debug.log
-yarn-debug.log
-yarn-error.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
 
-# Build output
-dist/
-build/
-
-# Environment files
+# Environment variables
 .env
 .env.local
+.env.*.local
+
+# Database files - ВАЖНО!
+*.db
+*.db-shm
+*.db-wal
+wildgift.db
+wildgift.db-shm
+wildgift.db-wal
+
+# SQLite
+*.sqlite
+*.sqlite3
 
 # Logs
 logs/
 *.log
-*.out
-*.err
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
 
-# VSCode settings
-.vscode/
-
-# System files
+# OS Files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
 
-# Render / Vercel / deployment caches
-.vercel/
-.render/
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.classpath
+
+# Build output
+dist/
+build/
+out/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Debug
+.cache/
+
+# PM2
+.pm2/
+ecosystem.config.js
+
+# Backup files
+*.bak
+*.backup
+backup/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Optional: если используешь TypeScript
+*.tsbuildinfo
