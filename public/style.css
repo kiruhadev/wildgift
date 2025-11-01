@@ -292,8 +292,10 @@
   box-shadow: 
     0 8px 24px rgba(21,32,51,.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: all 0.3s ease;
 }
 
+/* 🔥 Базовая пульсация (9-7 секунд - спокойная) */
 #countdown.pulse {
   animation: countPulse 0.4s ease;
 }
@@ -306,9 +308,9 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
   50% {
-    transform: translateX(-50%) scale(1.15);
+    transform: translateX(-50%) scale(1.1);
     box-shadow: 
-      0 12px 32px rgba(0, 166, 255, 0.5),
+      0 12px 32px rgba(0, 166, 255, 0.4),
       inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
   100% {
@@ -316,6 +318,167 @@
     box-shadow: 
       0 8px 24px rgba(0, 166, 255, 0.3),
       inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+}
+
+/* 🔥 Предупреждение (6-4 секунды - жёлтый) */
+#countdown.warning {
+  background: rgba(255, 193, 7, 0.15);
+  border-color: rgba(255, 193, 7, 0.3);
+}
+
+#countdown.warning.pulse {
+  animation: countPulseWarning 0.4s ease;
+}
+
+@keyframes countPulseWarning {
+  0% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 
+      0 8px 24px rgba(255, 193, 7, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.15);
+    box-shadow: 
+      0 16px 40px rgba(255, 193, 7, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 
+      0 8px 24px rgba(255, 193, 7, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+}
+
+#countdown.warning #countNum {
+  color: #ffc107;
+  text-shadow: 
+    0 0 20px rgba(255, 193, 7, 0.6),
+    0 0 40px rgba(255, 193, 7, 0.3);
+}
+
+/* 🔥 Опасность (3-2 секунды - оранжевый) */
+#countdown.danger {
+  background: rgba(255, 152, 0, 0.2);
+  border-color: rgba(255, 152, 0, 0.5);
+}
+
+#countdown.danger.pulse {
+  animation: countPulseDanger 0.4s ease;
+}
+
+@keyframes countPulseDanger {
+  0% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 
+      0 8px 24px rgba(255, 152, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.2);
+    box-shadow: 
+      0 20px 48px rgba(255, 152, 0, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 
+      0 8px 24px rgba(255, 152, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+}
+
+#countdown.danger #countNum {
+  color: #ff9800;
+  text-shadow: 
+    0 0 30px rgba(255, 152, 0, 0.8),
+    0 0 60px rgba(255, 152, 0, 0.4);
+}
+
+/* 🔥 Критично (1 секунда - красный, большой) */
+#countdown.critical {
+  background: rgba(244, 67, 54, 0.25);
+  border-color: rgba(244, 67, 54, 0.7);
+}
+
+#countdown.critical.pulse {
+  animation: countPulseCritical 0.4s ease;
+}
+
+@keyframes countPulseCritical {
+  0% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 
+      0 12px 32px rgba(244, 67, 54, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.3);
+    box-shadow: 
+      0 24px 64px rgba(244, 67, 54, 0.8),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 
+      0 12px 32px rgba(244, 67, 54, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+}
+
+#countdown.critical #countNum {
+  color: #f44336;
+  font-size: 1.3em;
+  text-shadow: 
+    0 0 40px rgba(244, 67, 54, 1),
+    0 0 80px rgba(244, 67, 54, 0.6),
+    0 0 120px rgba(244, 67, 54, 0.3);
+}
+
+/* 🔥 Финал (0 - красный мигающий) */
+#countdown.final {
+  background: rgba(244, 67, 54, 0.35);
+  border-color: rgba(244, 67, 54, 0.9);
+  animation: finalBlink 0.2s ease infinite;
+}
+
+@keyframes finalBlink {
+  0%, 100% {
+    transform: translateX(-50%) scale(1.4);
+    box-shadow: 
+      0 32px 96px rgba(244, 67, 54, 1),
+      inset 0 2px 0 rgba(255, 255, 255, 0.4);
+    opacity: 1;
+  }
+  50% {
+    transform: translateX(-50%) scale(1.5);
+    box-shadow: 
+      0 48px 128px rgba(244, 67, 54, 1),
+      inset 0 4px 0 rgba(255, 255, 255, 0.6);
+    opacity: 0.8;
+  }
+}
+
+#countdown.final #countNum {
+  color: #fff;
+  font-size: 1.5em;
+  font-weight: 900;
+  text-shadow: 
+    0 0 50px rgba(244, 67, 54, 1),
+    0 0 100px rgba(244, 67, 54, 0.8),
+    0 0 150px rgba(244, 67, 54, 0.6),
+    0 0 200px rgba(244, 67, 54, 0.4);
+  animation: finalNumberPulse 0.2s ease infinite;
+}
+
+@keyframes finalNumberPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
   }
 }
 
@@ -3812,3 +3975,4 @@
         0 2px 4px rgba(0, 0, 0, 1);
     }
   }
+    
