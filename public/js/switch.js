@@ -337,27 +337,46 @@
 
     try {
       console.log('[Switch] 🔄 Loading balance from server for user:', userId);
-      const res = await fetch(`/api/balance?userId=${userId}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 секунд таймаут
+      
+      const res = await fetch(`/api/balance?userId=${userId}`, {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (res.ok) {
         const data = await res.json();
         console.log('[Switch] 📊 Balance received:', data);
         
-        if (data.ton !== undefined || data.stars !== undefined) {
+        if (data.ok && (data.ton !== undefined || data.stars !== undefined)) {
           updateBalance({
-            ton: data.ton || 0,
-            stars: data.stars || 0
+            ton: parseFloat(data.ton) || 0,
+            stars: parseInt(data.stars) || 0
           });
           
           // Уведомляем модули о загрузке
           window.dispatchEvent(new CustomEvent('balance:loaded', {
-            detail: { ton: data.ton || 0, stars: data.stars || 0 }
+            detail: { 
+              ton: parseFloat(data.ton) || 0, 
+              stars: parseInt(data.stars) || 0 
+            }
           }));
+        } else {
+          console.warn('[Switch] ⚠️ Invalid balance data:', data);
         }
       } else {
-        console.error('[Switch] ❌ Balance load failed:', res.status);
+        console.error('[Switch] ❌ Balance load failed:', res.status, await res.text());
       }
     } catch (err) {
-      console.error('[Switch] ❌ Balance load error:', err);
+      if (err.name === 'AbortError') {
+        console.error('[Switch] ❌ Balance load timeout');
+      } else {
+        console.error('[Switch] ❌ Balance load error:', err);
+      }
+      // Не блокируем приложение при ошибке загрузки
     }
   }
 
