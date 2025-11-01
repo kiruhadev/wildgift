@@ -44,14 +44,14 @@ function initDatabase() {
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       telegram_id INTEGER NOT NULL,
-      type TEXT NOT NULL, -- 'deposit', 'withdrawal', 'bet', 'win'
-      currency TEXT NOT NULL, -- 'ton', 'stars'
+      type TEXT NOT NULL,
+      currency TEXT NOT NULL,
       amount REAL NOT NULL,
       balance_before REAL,
       balance_after REAL,
       description TEXT,
-      tx_hash TEXT, -- для TON транзакций
-      invoice_id TEXT, -- для Stars платежей
+      tx_hash TEXT,
+      invoice_id TEXT,
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
       FOREIGN KEY (telegram_id) REFERENCES users(telegram_id)
     )
@@ -63,10 +63,10 @@ function initDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       telegram_id INTEGER NOT NULL,
       round_id TEXT NOT NULL,
-      bet_data TEXT NOT NULL, -- JSON with bets
+      bet_data TEXT NOT NULL,
       total_amount REAL NOT NULL,
       currency TEXT NOT NULL,
-      result TEXT, -- 'win', 'lose', 'pending'
+      result TEXT,
       win_amount REAL DEFAULT 0,
       multiplier REAL DEFAULT 0,
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
@@ -89,6 +89,9 @@ function initDatabase() {
 
   console.log('✅ Database initialized');
 }
+
+// ВАЖНО: Инициализируем БД СРАЗУ, до создания prepared statements
+initDatabase();
 
 // ====== ПОЛЬЗОВАТЕЛИ ======
 
@@ -323,10 +326,8 @@ export function getUserStats(telegramId) {
   return stats || { wins: 0, losses: 0, total_won: 0, total_wagered: 0, total_bets: 0 };
 }
 
-// ====== ИНИЦИАЛИЗАЦИЯ ======
-initDatabase();
-
 export default db;
+
 
 
 
