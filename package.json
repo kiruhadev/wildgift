@@ -2,23 +2,15 @@
   "name": "wildgift",
   "version": "1.0.0",
   "type": "module",
-  "description": "WildGift - Telegram Mini App Casino",
-  "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "postinstall": "npm rebuild better-sqlite3"
   },
-  "keywords": [
-    "telegram",
-    "mini-app",
-    "ton",
-    "casino"
-  ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "dotenv": "^16.3.1"
+    "better-sqlite3": "^11.0.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
   },
   "engines": {
     "node": ">=18.0.0"
