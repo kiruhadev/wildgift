@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
+import * as db from "./database.js";
 
 dotenv.config();
 
@@ -232,6 +233,7 @@ app.post("/api/stars/webhook", async (req, res) => {
     if (update.message?.successful_payment) {
       const payment = update.message.successful_payment;
       const userId = update.message.from.id;
+      const userFrom = update.message.from;
 
       console.log('[Stars Webhook] Successful payment:', {
         userId,
@@ -239,6 +241,25 @@ app.post("/api/stars/webhook", async (req, res) => {
         payload: payment.invoice_payload,
         telegramPaymentChargeId: payment.telegram_payment_charge_id
       });
+
+      // Сохраняем пользователя в БД
+      db.saveUser(userFrom);
+
+      // Начисляем Stars на баланс
+      try {
+        const newBalance = db.updateBalance(
+          userId,
+          'stars',
+          payment.total_amount,
+          'deposit',
+          `Stars payment ${payment.telegram_payment_charge_id}`,
+          { invoiceId: payment.invoice_payload }
+        );
+
+        console.log('[Stars Webhook] Balance updated:', { userId, newBalance });
+      } catch (err) {
+        console.error('[Stars Webhook] Error updating balance:', err);
+      }
 
       // Отправляем подтверждение пользователю
       if (process.env.BOT_TOKEN) {
@@ -286,6 +307,157 @@ app.post("/api/deposit-notification", async (req, res) => {
   }
 });
 
+// ====== BALANCE API ======
+app.get("/api/balance", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'User ID is required'
+      });
+    }
+
+    // Получаем баланс из БД
+    const balance = db.getUserBalance(userId);
+
+    res.json({
+      ok: true,
+      userId: parseInt(userId),
+      ton: balance.ton_balance || 0,
+      stars: balance.stars_balance || 0,
+      updatedAt: balance.updated_at
+    });
+
+  } catch (error) {
+    console.error('[Balance] Error:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message || 'Failed to get balance'
+    });
+  }
+});
+
+// ====== USER PROFILE API ======
+app.get("/api/user/profile", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'User ID is required'
+      });
+    }
+
+    const user = db.getUserById(userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        ok: false,
+        error: 'User not found'
+      });
+    }
+
+    res.json({
+      ok: true,
+      user: {
+        id: user.telegram_id,
+        username: user.username,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        isPremium: user.is_premium === 1,
+        tonBalance: user.ton_balance || 0,
+        starsBalance: user.stars_balance || 0,
+        createdAt: user.created_at,
+        lastSeen: user.last_seen
+      }
+    });
+
+  } catch (error) {
+    console.error('[Profile] Error:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message || 'Failed to get profile'
+    });
+  }
+});
+
+// ====== USER STATS API ======
+app.get("/api/user/stats", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'User ID is required'
+      });
+    }
+
+    const stats = db.getUserStats(userId);
+
+    res.json({
+      ok: true,
+      stats: {
+        wins: stats.wins || 0,
+        losses: stats.losses || 0,
+        totalWon: stats.total_won || 0,
+        totalWagered: stats.total_wagered || 0,
+        totalBets: stats.total_bets || 0,
+        winRate: stats.total_bets > 0 ? ((stats.wins / stats.total_bets) * 100).toFixed(1) : 0
+      }
+    });
+
+  } catch (error) {
+    console.error('[Stats] Error:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message || 'Failed to get stats'
+    });
+  }
+});
+
+// ====== TRANSACTION HISTORY API ======
+app.get("/api/user/transactions", async (req, res) => {
+  try {
+    const { userId, limit } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'User ID is required'
+      });
+    }
+
+    const transactions = db.getTransactionHistory(userId, parseInt(limit) || 50);
+
+    res.json({
+      ok: true,
+      transactions: transactions.map(tx => ({
+        id: tx.id,
+        type: tx.type,
+        currency: tx.currency,
+        amount: tx.amount,
+        balanceBefore: tx.balance_before,
+        balanceAfter: tx.balance_after,
+        description: tx.description,
+        txHash: tx.tx_hash,
+        invoiceId: tx.invoice_id,
+        createdAt: tx.created_at
+      }))
+    });
+
+  } catch (error) {
+    console.error('[Transactions] Error:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message || 'Failed to get transactions'
+    });
+  }
+});
+
 // ====== WHEEL ROUND API - ИСПРАВЛЕНО! ======
 app.get("/api/round/start", (req, res) => {
   try {
@@ -317,7 +489,7 @@ app.get("/api/round/start", (req, res) => {
 // ====== Проверка ставок (опционально) ======
 app.post("/api/round/place-bet", async (req, res) => {
   try {
-    const { bets, initData } = req.body || {};
+    const { bets, currency, roundId, initData } = req.body || {};
     
     // Проверяем авторизацию
     const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
@@ -339,15 +511,52 @@ app.post("/api/round/place-bet", async (req, res) => {
       return res.status(400).json({ ok: false, error: "Invalid bets format" });
     }
 
-    console.log('[Bets] Received:', { userId, bets });
+    if (!currency || !['ton', 'stars'].includes(currency)) {
+      return res.status(400).json({ ok: false, error: "Invalid currency" });
+    }
 
-    // Здесь можно добавить валидацию и сохранение ставок в БД
-    // Например, проверить баланс пользователя
+    // Подсчитываем общую сумму ставки
+    const totalAmount = Object.values(bets).reduce((sum, amount) => sum + parseFloat(amount || 0), 0);
+
+    if (totalAmount <= 0) {
+      return res.status(400).json({ ok: false, error: "Bet amount must be greater than 0" });
+    }
+
+    console.log('[Bets] Received:', { userId, bets, currency, totalAmount, roundId });
+
+    // Сохраняем пользователя
+    db.saveUser(user);
+
+    // Проверяем баланс
+    const balance = db.getUserBalance(userId);
+    const currentBalance = currency === 'ton' ? balance.ton_balance : balance.stars_balance;
+
+    if (currentBalance < totalAmount) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: "Insufficient balance",
+        currentBalance,
+        required: totalAmount
+      });
+    }
+
+    // Создаем ставку в БД (это спишет баланс)
+    const betId = db.createBet(userId, roundId || `round_${Date.now()}`, bets, totalAmount, currency);
+
+    // Получаем новый баланс
+    const newBalance = db.getUserBalance(userId);
 
     res.json({
       ok: true,
       userId,
+      betId,
       bets,
+      totalAmount,
+      currency,
+      balance: {
+        ton: newBalance.ton_balance,
+        stars: newBalance.stars_balance
+      },
       timestamp: Date.now()
     });
 
