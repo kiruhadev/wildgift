@@ -755,6 +755,242 @@ app.post("/api/round/place-bet", async (req, res) => {
     });
   }
 });
+// ============================================
+// 🧪 TEST BALANCE SYSTEM
+// Добавь эти эндпоинты в server.js ПЕРЕД строкой "// ====== SPA fallback ======"
+// ============================================
+
+// 🎁 ДАТЬ ТЕСТОВЫЕ ДЕНЬГИ (только в development)
+app.post("/api/test/give-balance", async (req, res) => {
+  try {
+    // 🔒 ЗАЩИТА: работает только в development
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        ok: false,
+        error: 'This endpoint is disabled in production'
+      });
+    }
+
+    const { userId, ton, stars } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'User ID is required'
+      });
+    }
+
+    console.log('[TEST] 🎁 Giving test balance:', { userId, ton, stars });
+
+    let results = {};
+
+    // Дать TON
+    if (ton && ton > 0) {
+      const newTonBalance = db.updateBalance(
+        userId,
+        'ton',
+        parseFloat(ton),
+        'test',
+        '🧪 Test TON deposit',
+        { test: true }
+      );
+      results.ton = newTonBalance;
+      console.log('[TEST] ✅ Added TON:', newTonBalance);
+    }
+
+    // Дать Stars
+    if (stars && stars > 0) {
+      const newStarsBalance = db.updateBalance(
+        userId,
+        'stars',
+        parseInt(stars),
+        'test',
+        '🧪 Test Stars deposit',
+        { test: true }
+      );
+      results.stars = newStarsBalance;
+      console.log('[TEST] ✅ Added Stars:', newStarsBalance);
+    }
+
+    // Отправить обновление через SSE
+    if (ton || stars) {
+      broadcastBalanceUpdate(userId, 'ton', results.ton || 0);
+    }
+
+    const finalBalance = db.getUserBalance(userId);
+
+    res.json({
+      ok: true,
+      message: 'Test balance added successfully',
+      balance: {
+        ton: parseFloat(finalBalance.ton_balance) || 0,
+        stars: parseInt(finalBalance.stars_balance) || 0
+      },
+      added: {
+        ton: ton || 0,
+        stars: stars || 0
+      }
+    });
+
+  } catch (error) {
+    console.error('[TEST] Error giving balance:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message || 'Failed to give test balance'
+    });
+  }
+});
+
+// 🔄 СБРОСИТЬ БАЛАНС (только в development)
+app.post("/api/test/reset-balance", async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        ok: false,
+        error: 'This endpoint is disabled in production'
+      });
+    }
+
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'User ID is required'
+      });
+    }
+
+    console.log('[TEST] 🔄 Resetting balance for user:', userId);
+
+    // Установить баланс в 0
+    db.updateBalance(userId, 'ton', 0, 'test', '🧪 Balance reset', { test: true, reset: true });
+    db.updateBalance(userId, 'stars', 0, 'test', '🧪 Balance reset', { test: true, reset: true });
+
+    // Отправить обновление через SSE
+    broadcastBalanceUpdate(userId, 'ton', 0);
+
+    res.json({
+      ok: true,
+      message: 'Balance reset to 0',
+      balance: {
+        ton: 0,
+        stars: 0
+      }
+    });
+
+  } catch (error) {
+    console.error('[TEST] Error resetting balance:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message || 'Failed to reset balance'
+    });
+  }
+});
+
+// 💰 УСТАНОВИТЬ ТОЧНЫЙ БАЛАНС (только в development)
+app.post("/api/test/set-balance", async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        ok: false,
+        error: 'This endpoint is disabled in production'
+      });
+    }
+
+    const { userId, ton, stars } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'User ID is required'
+      });
+    }
+
+    console.log('[TEST] 💰 Setting exact balance:', { userId, ton, stars });
+
+    const currentBalance = db.getUserBalance(userId);
+
+    let results = {};
+
+    // Установить TON
+    if (ton !== undefined) {
+      const currentTon = parseFloat(currentBalance.ton_balance) || 0;
+      const diff = ton - currentTon;
+      
+      if (diff !== 0) {
+        const newTonBalance = db.updateBalance(
+          userId,
+          'ton',
+          diff,
+          'test',
+          `🧪 Set TON balance to ${ton}`,
+          { test: true, setBalance: true }
+        );
+        results.ton = newTonBalance;
+      } else {
+        results.ton = currentTon;
+      }
+    }
+
+    // Установить Stars
+    if (stars !== undefined) {
+      const currentStars = parseInt(currentBalance.stars_balance) || 0;
+      const diff = stars - currentStars;
+      
+      if (diff !== 0) {
+        const newStarsBalance = db.updateBalance(
+          userId,
+          'stars',
+          diff,
+          'test',
+          `🧪 Set Stars balance to ${stars}`,
+          { test: true, setBalance: true }
+        );
+        results.stars = newStarsBalance;
+      } else {
+        results.stars = currentStars;
+      }
+    }
+
+    // Отправить обновление через SSE
+    broadcastBalanceUpdate(userId, 'ton', results.ton || 0);
+
+    const finalBalance = db.getUserBalance(userId);
+
+    res.json({
+      ok: true,
+      message: 'Balance set successfully',
+      balance: {
+        ton: parseFloat(finalBalance.ton_balance) || 0,
+        stars: parseInt(finalBalance.stars_balance) || 0
+      }
+    });
+
+  } catch (error) {
+    console.error('[TEST] Error setting balance:', error);
+    res.status(500).json({
+      ok: false,
+      error: error.message || 'Failed to set balance'
+    });
+  }
+});
+
+// 📊 ПОЛУЧИТЬ ИНФОРМАЦИЮ О ТЕСТОВОМ РЕЖИМЕ
+app.get("/api/test/info", (req, res) => {
+  res.json({
+    ok: true,
+    testMode: process.env.NODE_ENV !== 'production',
+    environment: process.env.NODE_ENV || 'development',
+    endpoints: process.env.NODE_ENV !== 'production' ? {
+      giveBalance: 'POST /api/test/give-balance',
+      resetBalance: 'POST /api/test/reset-balance',
+      setBalance: 'POST /api/test/set-balance'
+    } : null,
+    message: process.env.NODE_ENV === 'production' 
+      ? 'Test endpoints are disabled in production' 
+      : 'Test endpoints are available'
+  });
+});
 
 // ====== SPA fallback ======
 app.get("*", (req, res, next) => {

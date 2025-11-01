@@ -3976,3 +3976,35 @@
     }
   }
     
+
+
+  /* ========================================
+   🔴 АНИМАЦИЯ НЕДОСТАТОЧНОГО БАЛАНСА
+   ======================================== */
+
+/* Красная подсветка при недостатке средств */
+.bet-tile.insufficient-balance {
+  animation: insufficientShake 0.4s ease;
+  border-color: rgba(244, 67, 54, 0.8) !important;
+  background: rgba(244, 67, 54, 0.15) !important;
+  opacity: 50%;
+}
+
+@keyframes insufficientShake {
+  0%, 100% { 
+    transform: translateX(0); 
+  }
+  25% { 
+    transform: translateX(-8px); 
+  }
+  50% {
+    transform: translateX(8px);
+  }
+  75% { 
+    transform: translateX(-4px); 
+  }
+}
+
+/* ========================================
+   ДОБАВЬ ЭТО В КОНЕЦ style.css
+   ======================================== */

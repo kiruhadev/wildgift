@@ -1,4 +1,4 @@
-// wheel.js - Исправленная система ставок с точным совпадением
+// wheel.js - Исправленная система ставок с точным совпадением и проверкой баланса
 
 /* ===== CONFIG ===== */
 const WHEEL_ORDER = [
@@ -28,24 +28,9 @@ const LABELS = {
   '50&50':'50&50','Loot Rush':'Loot','Wild Time':'Wild' 
 };
 
-// Сообщения для выигрыша и проигрыша
-const WIN_MESSAGES = {
-  '1x': '🎉 You won with 1×!',
-  '3x': '🎊 Great! 3× multiplier!',
-  '7x': '✨ Amazing! 7× multiplier!',
-  '11x': '🌟 Fantastic! 11× multiplier!',
-  '50&50': '🎁 50&50 Bonus! Try your luck!',
-  'Loot Rush': '💎 Loot Rush! Treasure time!',
-  'Wild Time': '🔥 WILD TIME! Maximum bonus!'
-};
-
-const LOSS_MESSAGES = {
-  default: '😔 Not this time... Try again!',
-  close: '😕 So close! Better luck next time!'
-};
-
 /* ===== DOM refs ===== */
 let canvas, ctx, DPR = 1;
+let userBalance = { ton: 0, stars: 0 }; // Баланс пользователя
 let betOverlay, historyList, countdownBox, countNumEl;
 let amountBtns = [], betTiles = [];
 
@@ -68,7 +53,8 @@ let decel = null;
 /* ===== Ставки ===== */
 const betsMap = new Map();
 let currentAmount = 0.5;
-let lastRoundResult = null; // Для хранения результата последнего раунда
+let currentCurrency = 'ton';
+let lastRoundResult = null;
 
 /* ===== Предзагрузка изображений ===== */
 const loadedImages = new Map();
@@ -140,12 +126,55 @@ function initBettingUI(){
     });
   });
 
+  // 🔥 Слушаем обновление баланса из switch.js
+  window.addEventListener('balance:loaded', (e) => {
+    if (e.detail) {
+      userBalance.ton = e.detail.ton || 0;
+      userBalance.stars = e.detail.stars || 0;
+      console.log('[Wheel] Balance loaded:', userBalance);
+    }
+  });
+
+  window.addEventListener('balance:update', (e) => {
+    if (e.detail) {
+      if (e.detail.ton !== undefined) userBalance.ton = e.detail.ton;
+      if (e.detail.stars !== undefined) userBalance.stars = e.detail.stars;
+      console.log('[Wheel] Balance updated:', userBalance);
+    }
+  });
+
+  // Слушаем смену валюты
+  window.addEventListener('currency:changed', (e) => {
+    if (e.detail && e.detail.currency) {
+      currentCurrency = e.detail.currency;
+      console.log('[Wheel] Currency changed to:', currentCurrency);
+    }
+  });
+
+  // 🔥 ОБНОВЛЕННЫЙ обработчик ставок с проверкой баланса
   betTiles.forEach(tile => {
     tile.addEventListener('click', () => {
       if (phase !== 'betting') return;
+      
       const seg = tile.dataset.seg;
       const cur = betsMap.get(seg) || 0;
-      const next = +(cur + currentAmount).toFixed(2);
+      
+      // 🔥 Проверка баланса ПЕРЕД добавлением ставки
+      const balance = userBalance[currentCurrency] || 0;
+      
+      if (balance < currentAmount) {
+        // ❌ Недостаточно средств
+        tile.classList.add('insufficient-balance');
+        setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
+        
+        showInsufficientBalanceNotification();
+        return; // НЕ добавляем ставку
+      }
+      
+      // ✅ Достаточно средств - добавляем ставку
+      const next = currentCurrency === 'stars' 
+        ? Math.round(cur + currentAmount)
+        : +(cur + currentAmount).toFixed(2);
       betsMap.set(seg, next);
 
       let badge = tile.querySelector('.bet-badge');
@@ -329,7 +358,6 @@ function tick(ts){
       omega = IDLE_OMEGA;
       setBetPanel(true);
 
-      // Проверяем результат раунда
       if (typeFinished) {
         checkBetsAndShowResult(typeFinished);
         setTimeout(() => {
@@ -352,21 +380,18 @@ function tick(ts){
   rafId = requestAnimationFrame(tick);
 }
 
-/* ===== Проверка ставок и показ результата ===== */
+/* ===== 🔥 ОБНОВЛЕННАЯ Проверка ставок и показ результата ===== */
 function checkBetsAndShowResult(resultType) {
   const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
   
-  // Если нет ставок - НЕ показываем уведомление
   if (totalBets <= 0) {
     console.log('No bets placed - skipping notification');
     return;
   }
 
-  // Проверяем, была ли ставка на выпавший результат
   const betOnResult = betsMap.get(resultType) || 0;
   
   if (betOnResult > 0) {
-    // ВЫИГРЫШ! Ставка совпала
     const multiplier = getMultiplier(resultType);
     const winAmount = betOnResult * multiplier;
     
@@ -378,16 +403,13 @@ function checkBetsAndShowResult(resultType) {
       totalBets
     });
     
-    showResultMessage(resultType, true, betOnResult, winAmount);
+    showWinNotification(winAmount);
   } else {
-    // ПРОИГРЫШ - ставка не совпала
     console.log('😔 LOSS', {
       result: resultType,
       yourBets: Array.from(betsMap.entries()).map(([k,v]) => `${k}: ${v}`),
       totalLost: totalBets
     });
-    
-    showResultMessage(resultType, false, totalBets, 0);
   }
 }
 
@@ -398,145 +420,175 @@ function getMultiplier(type) {
     '3x': 3,
     '7x': 7,
     '11x': 11,
-    '50&50': 2,      // Бонусная игра
-    'Loot Rush': 5,  // Бонусная игра
-    'Wild Time': 10  // Максимальный бонус
+    '50&50': 2,
+    'Loot Rush': 5,
+    'Wild Time': 10
   };
   return multipliers[type] || 1;
 }
 
-/* ===== Показ результата (выигрыш/проигрыш) ===== */
-function showResultMessage(typeKey, isWin, betAmount, winAmount) {
-  const toast = document.createElement('div');
+/* ===== 🔥 НОВАЯ функция - показ только выигрыша ===== */
+function showWinNotification(winAmount) {
+  const existing = document.getElementById('win-toast');
+  if (existing) existing.remove();
   
-  // Разные стили для выигрыша и проигрыша
-  if (isWin) {
-    const color = COLORS[typeKey]?.fill || '#00a6ff';
-    toast.style.cssText = `
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%) translateY(-100px);
-  z-index: 10000;
-  background: rgba(20, 28, 42, 0.85);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 16px 20px;
-  min-width: 280px;
-  max-width: 90%;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  animation: slideDown 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-`;
-
-toast.innerHTML = `
-  <div style="display: flex; align-items: center; gap: 12px;">
-    <div style="font-size: 32px;">${WIN_MESSAGES[typeKey].split(' ')[0]}</div>
-    <div style="flex: 1;">
-      <div style="font-size: 14px; font-weight: 700; color: #e7edf7; margin-bottom: 4px;">
-        ${WIN_MESSAGES[typeKey].substring(2)}
-      </div>
-      <div style="font-size: 12px; color: rgba(231,237,247,0.7); margin-bottom: 6px;">
-        Bet: ${betAmount} TON
-      </div>
-      <div style="font-size: 18px; font-weight: 800; color: #27c93f;">
-        +${winAmount.toFixed(2)} TON
-      </div>
-    </div>
-  </div>
-`;
-  } else {
-    // Проигрыш
-    toast.style.cssText = `
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%) translateY(-100px);
-  z-index: 10000;
-  background: rgba(20, 28, 42, 0.85);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 16px 20px;
-  min-width: 280px;
-  max-width: 90%;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  animation: slideDown 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-`;
-
-toast.innerHTML = `
-  <div style="display: flex; align-items: center; gap: 12px;">
-    <div style="font-size: 32px;">😔</div>
-    <div style="flex: 1;">
-      <div style="font-size: 14px; font-weight: 700; color: #e7edf7; margin-bottom: 4px;">
-        ${LOSS_MESSAGES.default}
-      </div>
-      <div style="font-size: 12px; color: rgba(231,237,247,0.6); margin-bottom: 6px;">
-        Result: <span style="font-weight: 700;">${LABELS[typeKey]}</span>
-      </div>
-      <div style="font-size: 16px; font-weight: 700; color: #ff4d4f;">
-        -${betAmount.toFixed(2)} TON
-      </div>
-    </div>
-  </div>
-`;
-  }
-
-  // Добавляем стили для анимаций
-  if (!document.getElementById('result-animations')) {
+  const toast = document.createElement('div');
+  toast.id = 'win-toast';
+  
+  const currencySymbol = currentCurrency === 'ton' ? 'TON' : '⭐';
+  const formattedAmount = currentCurrency === 'stars' 
+    ? Math.round(winAmount) 
+    : winAmount.toFixed(2);
+  
+  toast.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    z-index: 10000;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(5, 150, 105, 0.08));
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: 20px;
+    padding: 18px 28px;
+    font-size: 26px;
+    font-weight: 900;
+    color: #10b981;
+    box-shadow: 
+      0 12px 32px rgba(16, 185, 129, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+    animation: winJellyIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+    text-shadow: 0 2px 12px rgba(16, 185, 129, 0.4);
+    letter-spacing: 0.5px;
+  `;
+  
+  toast.textContent = `+${formattedAmount} ${currencySymbol}`;
+  
+  if (!document.getElementById('win-animations')) {
     const style = document.createElement('style');
-    style.id = 'result-animations';
+    style.id = 'win-animations';
     style.textContent = `
-      @keyframes slideDown {
-        from { 
-          transform: translateX(-50%) translateY(-100px);
+      @keyframes winJellyIn {
+        0% { 
+          transform: translateX(-50%) translateY(-100px) scale(0.3);
           opacity: 0;
         }
-        to { 
-          transform: translateX(-50%) translateY(0);
+        50% { 
+          transform: translateX(-50%) translateY(0) scale(1.08);
+          opacity: 1;
+        }
+        65% { 
+          transform: translateX(-50%) translateY(0) scale(0.95);
+        }
+        80% { 
+          transform: translateX(-50%) translateY(0) scale(1.02);
+        }
+        100% { 
+          transform: translateX(-50%) translateY(0) scale(1);
           opacity: 1;
         }
       }
-      @keyframes slideUp {
-        from { 
-          transform: translateX(-50%) translateY(0);
+      @keyframes winJellyOut {
+        0% { 
+          transform: translateX(-50%) translateY(0) scale(1);
           opacity: 1;
         }
-        to { 
-          transform: translateX(-50%) translateY(-100px);
+        20% {
+          transform: translateX(-50%) translateY(0) scale(1.05);
+          opacity: 1;
+        }
+        100% { 
+          transform: translateX(-50%) translateY(-80px) scale(0.7);
           opacity: 0;
         }
-      }
-      @keyframes bounce {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.2); }
       }
     `;
     document.head.appendChild(style);
   }
-
+  
   document.body.appendChild(toast);
-
-  // Удаляем через 3 секунды
+  
   setTimeout(() => {
-    toast.style.animation = 'slideUp 0.3s ease forwards';
-    setTimeout(() => toast.remove(), 300);
-  }, 2700);
+    toast.style.animation = 'winJellyOut 0.6s cubic-bezier(0.6, -0.28, 0.735, 0.045) forwards';
+    setTimeout(() => toast.remove(), 600);
+  }, 2500);
 }
 
-function adjustColor(color, amount) {
-  const clamp = (num) => Math.min(255, Math.max(0, num));
+/* ===== 🔥 НОВАЯ функция - уведомление о недостаточном балансе ===== */
+function showInsufficientBalanceNotification() {
+  const existing = document.getElementById('insufficient-balance-toast');
+  if (existing) existing.remove();
   
-  const hex = color.replace('#', '');
-  let r = parseInt(hex.substring(0, 2), 16);
-  let g = parseInt(hex.substring(2, 4), 16);
-  let b = parseInt(hex.substring(4, 6), 16);
+  const toast = document.createElement('div');
+  toast.id = 'insufficient-balance-toast';
+  toast.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    z-index: 10000;
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.15), rgba(153, 27, 27, 0.1));
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(185, 28, 28, 0.2);
+    border-radius: 18px;
+    padding: 14px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ef4444;
+    box-shadow: 0 10px 30px rgba(127, 29, 29, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+    animation: insufficientJellyIn 0.7s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+    pointer-events: none;
+    text-shadow: 0 1px 8px rgba(239, 68, 68, 0.3);
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  `;
+  toast.textContent = 'Insufficient balance';
   
-  r = clamp(r + amount);
-  g = clamp(g + amount);
-  b = clamp(b + amount);
+  if (!document.getElementById('insufficient-animations')) {
+    const style = document.createElement('style');
+    style.id = 'insufficient-animations';
+    style.textContent = `
+      @keyframes insufficientJellyIn {
+        0% { 
+          transform: translateX(-50%) translateY(-80px) scale(0.4);
+          opacity: 0;
+        }
+        50% { 
+          transform: translateX(-50%) translateY(0) scale(1.06);
+          opacity: 1;
+        }
+        65% { 
+          transform: translateX(-50%) translateY(0) scale(0.96);
+        }
+        80% { 
+          transform: translateX(-50%) translateY(0) scale(1.02);
+        }
+        100% { 
+          transform: translateX(-50%) translateY(0) scale(1);
+          opacity: 1;
+        }
+      }
+      @keyframes insufficientJellyOut {
+        0% { 
+          transform: translateX(-50%) translateY(0) scale(1);
+          opacity: 1;
+        }
+        100% { 
+          transform: translateX(-50%) translateY(-60px) scale(0.85);
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
   
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'insufficientJellyOut 0.5s cubic-bezier(0.6, -0.28, 0.735, 0.045) forwards';
+    setTimeout(() => toast.remove(), 500);
+  }, 2000);
 }
 
 /* ===== Countdown ===== */
