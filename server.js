@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
-import * as db from "./database.js";
+import * as db from "./database-sqlite.js";
 
 dotenv.config();
 
@@ -183,6 +183,8 @@ app.post("/api/deposit-notification", async (req, res) => {
   }
 });
 
+
+
 // ====== BALANCE API ======
 app.get("/api/balance", async (req, res) => {
   try {
@@ -197,9 +199,21 @@ app.get("/api/balance", async (req, res) => {
 
     console.log('[Balance] Request for user:', userId);
 
-    const balance = db.getUserBalance(userId);
+    // 🔥 FIX: Handle guest users
+    if (userId === 'guest' || isNaN(parseInt(userId))) {
+      console.log('[Balance] Guest user, returning zero balance');
+      return res.json({
+        ok: true,
+        userId: userId,
+        ton: 0,
+        stars: 0,
+        updatedAt: Math.floor(Date.now() / 1000)
+      });
+    }
 
-    console.log('[Balance] Retrieved:', balance);
+    const balance = db.getUserBalance(parseInt(userId));
+
+    console.log('[Balance] ✅ Retrieved:', balance);
 
     res.json({
       ok: true,
@@ -210,13 +224,15 @@ app.get("/api/balance", async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Balance] Error:', error);
+    console.error('[Balance] ❌ Error:', error);
     res.status(500).json({
       ok: false,
       error: error.message || 'Failed to get balance'
     });
   }
 });
+
+
 
 // ====== STARS PAYMENT API ======
 app.post("/api/stars/create-invoice", async (req, res) => {

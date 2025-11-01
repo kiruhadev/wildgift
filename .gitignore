@@ -79,3 +79,29 @@ coverage/
 
 # Optional: если используешь TypeScript
 *.tsbuildinfo
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# Old JSON database
+wildgift.json
+
+# Keep SQL scripts
+!*.sql
+```
+
+---
+
+## Шаг 5: Создай Persistent Disk на Render
+
+### В Dashboard Render:
+
+1. Зайди в твой сервис
+2. **Settings** → Scroll down → **Disks**
+3. Click **Add Disk**:
+```
+   Name: database
+   Mount Path: /opt/render/project/data
+   Size: 1 GB
