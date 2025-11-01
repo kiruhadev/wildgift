@@ -81,17 +81,142 @@ app.get("/api/tg/photo/:userId", async (req, res) => {
 });
 
 // ====== DEPOSIT NOTIFICATION ======
+// ====== SSE для автообновления баланса ======
+const balanceClients = new Map(); // userId -> Set of response objects
+
+app.get("/api/balance/stream", (req, res) => {
+  const { userId } = req.query;
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID required' });
+  }
+
+  // SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+  
+  console.log('[SSE] Client connected:', userId);
+  
+  // Add client to list
+  if (!balanceClients.has(userId)) {
+    balanceClients.set(userId, new Set());
+  }
+  balanceClients.get(userId).add(res);
+  
+  // Send initial balance
+  try {
+    const balance = db.getUserBalance(parseInt(userId));
+    res.write(`data: ${JSON.stringify({
+      type: 'balance',
+      ton: parseFloat(balance.ton_balance) || 0,
+      stars: parseInt(balance.stars_balance) || 0,
+      timestamp: Date.now()
+    })}\n\n`);
+  } catch (err) {
+    console.error('[SSE] Error sending initial balance:', err);
+  }
+  
+  // Heartbeat to keep connection alive
+  const heartbeat = setInterval(() => {
+    res.write(': heartbeat\n\n');
+  }, 30000); // Every 30 seconds
+  
+  // Cleanup on disconnect
+  req.on('close', () => {
+    console.log('[SSE] Client disconnected:', userId);
+    clearInterval(heartbeat);
+    const clients = balanceClients.get(userId);
+    if (clients) {
+      clients.delete(res);
+      if (clients.size === 0) {
+        balanceClients.delete(userId);
+      }
+    }
+  });
+});
+
+// Function to broadcast balance updates
+function broadcastBalanceUpdate(userId, currency, newBalance) {
+  const clients = balanceClients.get(String(userId));
+  if (!clients || clients.size === 0) {
+    console.log('[SSE] No clients to notify for user:', userId);
+    return;
+  }
+  
+  console.log('[SSE] Broadcasting update to', clients.size, 'clients for user:', userId);
+  
+  // Get full balance
+  try {
+    const balance = db.getUserBalance(userId);
+    const data = JSON.stringify({
+      type: 'balance',
+      ton: parseFloat(balance.ton_balance) || 0,
+      stars: parseInt(balance.stars_balance) || 0,
+      timestamp: Date.now()
+    });
+    
+    clients.forEach(client => {
+      try {
+        client.write(`data: ${data}\n\n`);
+      } catch (err) {
+        console.error('[SSE] Error sending to client:', err);
+        clients.delete(client);
+      }
+    });
+  } catch (err) {
+    console.error('[SSE] Error broadcasting:', err);
+  }
+}
+
+// ====== DEPOSIT TRACKING (prevent duplicates) ======
+const processedDeposits = new Map(); // invoiceId/txHash -> timestamp
+
+function isDepositProcessed(identifier) {
+  if (!identifier) return false;
+  
+  // Clean old entries (older than 10 minutes)
+  const now = Date.now();
+  for (const [key, timestamp] of processedDeposits.entries()) {
+    if (now - timestamp > 600000) {
+      processedDeposits.delete(key);
+    }
+  }
+  
+  return processedDeposits.has(identifier);
+}
+
+function markDepositProcessed(identifier) {
+  if (identifier) {
+    processedDeposits.set(identifier, Date.now());
+  }
+}
+
+// ====== DEPOSIT NOTIFICATION ======
 app.post("/api/deposit-notification", async (req, res) => {
   try {
-    const { amount, currency, userId, txHash, timestamp, initData } = req.body;
+    const { amount, currency, userId, txHash, timestamp, initData, invoiceId } = req.body;
+    
+    const depositId = invoiceId || txHash || `${userId}_${currency}_${amount}_${timestamp}`;
     
     console.log('[Deposit] Notification received:', {
       amount,
       currency,
       userId,
-      txHash: txHash?.slice(0, 10) + '...',
+      depositId: depositId?.substring(0, 20) + '...',
       timestamp
     });
+
+    // 🔥 CHECK FOR DUPLICATES
+    if (isDepositProcessed(depositId)) {
+      console.log('[Deposit] ⚠️ Duplicate detected, skipping:', depositId);
+      return res.json({ 
+        ok: true, 
+        message: 'Already processed',
+        duplicate: true
+      });
+    }
 
     // Validation
     if (!userId) {
@@ -121,6 +246,9 @@ app.post("/api/deposit-notification", async (req, res) => {
       }
     }
 
+    // 🔥 MARK AS PROCESSED BEFORE UPDATING BALANCE
+    markDepositProcessed(depositId);
+
     // Process deposit based on currency
     try {
       if (currency === 'ton') {
@@ -129,11 +257,14 @@ app.post("/api/deposit-notification", async (req, res) => {
           'ton',
           parseFloat(amount),
           'deposit',
-          txHash ? `TON deposit ${txHash.slice(0, 10)}...` : 'TON deposit',
+          txHash ? `TON deposit ${txHash.substring(0, 10)}...` : 'TON deposit',
           { txHash }
         );
         
-        console.log('[Deposit] TON balance updated:', { userId, newBalance });
+        console.log('[Deposit] ✅ TON balance updated:', { userId, newBalance });
+        
+        // 🔥 BROADCAST BALANCE UPDATE
+        broadcastBalanceUpdate(userId, 'ton', newBalance);
         
         // Send notification
         if (process.env.BOT_TOKEN) {
@@ -153,10 +284,13 @@ app.post("/api/deposit-notification", async (req, res) => {
           parseInt(amount),
           'deposit',
           'Stars payment',
-          { invoiceId: txHash }
+          { invoiceId: depositId }
         );
         
-        console.log('[Deposit] Stars balance updated:', { userId, newBalance });
+        console.log('[Deposit] ✅ Stars balance updated:', { userId, newBalance });
+        
+        // 🔥 BROADCAST BALANCE UPDATE
+        broadcastBalanceUpdate(userId, 'stars', newBalance);
         
         return res.json({ 
           ok: true, 
@@ -167,6 +301,9 @@ app.post("/api/deposit-notification", async (req, res) => {
       
     } catch (err) {
       console.error('[Deposit] Error updating balance:', err);
+      // Remove from processed if failed
+      processedDeposits.delete(depositId);
+      
       return res.status(500).json({ 
         ok: false, 
         error: 'Failed to update balance',
@@ -182,6 +319,7 @@ app.post("/api/deposit-notification", async (req, res) => {
     });
   }
 });
+
 
 
 

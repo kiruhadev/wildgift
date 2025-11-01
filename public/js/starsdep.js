@@ -1,4 +1,4 @@
-// public/js/starsdep.js - Stars Purchase Module (FIXED - NO RECURSION)
+// public/js/starsdep.js - Stars Purchase Module (FIXED - NO DUPLICATE CALLS)
 (() => {
   console.log('[STARS] ⭐ Starting Stars module');
 
@@ -219,23 +219,16 @@
         if (status === 'paid') {
           console.log('[STARS] ✅ Payment successful!');
 
-          fetch('/api/deposit-notification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              amount, 
-              currency: 'stars', 
-              userId: tgUserId, 
-              initData,
-              invoiceId: invoiceData.invoiceId, 
-              timestamp: Date.now()
-            })
-          }).catch(err => console.warn('[STARS] Notification failed:', err));
+          // 🔥 FIX: Don't call /api/deposit-notification here!
+          // Telegram will send webhook to the server automatically
+          // The SSE connection will notify us when balance updates
+          
+          console.log('[STARS] ⏳ Waiting for balance update from server...');
 
           if (tg?.showPopup) {
             tg.showPopup({
               title: '✅ Success',
-              message: `Purchased ${amount} ⭐ Stars!`,
+              message: `Purchased ${amount} ⭐ Stars!\n\nYour balance will update automatically.`,
               buttons: [{ type: 'ok' }]
             });
           } else if (tg?.showAlert) {
@@ -244,9 +237,8 @@
 
           if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
 
-          // 🔥 FIX: Let server update balance, we'll reload it
-          console.log('[STARS] 🔄 Reloading balance from server...');
-          loadBalance();
+          // Balance will update automatically via SSE (balance-live.js)
+          // No need to reload manually
 
           setTimeout(() => {
             closePopup();
@@ -318,10 +310,6 @@
         const data = await res.json();
         if (data.stars !== undefined) {
           setBalance(data.stars);
-          // 🔥 FIX: Notify currency system WITHOUT triggering update
-          if (window.WildTimeCurrency?._setBalanceSilent) {
-            window.WildTimeCurrency._setBalanceSilent('stars', data.stars);
-          }
         }
       }
     } catch (err) {
@@ -330,10 +318,10 @@
   }
 
   // ====== EVENTS ======
-  // 🔥 FIX: Only listen to external updates (from switch.js)
-  window.addEventListener('balance:update', (e) => {
-    if (e.detail?.stars !== undefined && e.detail._source !== 'starsdep') {
-      console.log('[STARS] 🔔 External balance update:', e.detail.stars);
+  // Listen to live balance updates from SSE
+  window.addEventListener('balance:live-update', (e) => {
+    if (e.detail?.stars !== undefined) {
+      console.log('[STARS] 📡 Live balance update:', e.detail.stars);
       setBalance(e.detail.stars);
     }
   });
@@ -350,7 +338,7 @@
   window.WTStarsDeposit = {
     open: openPopup,
     close: closePopup,
-    setBalance: setBalance, // 🔥 FIX: Renamed from updateBalance
+    setBalance: setBalance,
     isAvailable: () => !!tg?.openInvoice && !!tgUserId,
     getBalance: () => platformBalance
   };
