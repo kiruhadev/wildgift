@@ -1,4 +1,4 @@
-// public/js/tondep.js - TON Deposit Module (UPDATED WITH VALIDATION)
+// public/js/tondep.js - TON Deposit Module (FIXED BALANCE)
 (() => {
   console.log('[TON] 🚀 Starting TON module');
 
@@ -113,7 +113,13 @@
   function openPopup() {
     console.log('[TON] 📂 Open popup');
     popup.classList.add('deposit-popup--open');
+    
+    // Загружаем баланс кошелька если подключен
     if (tc?.account) fetchWalletBalance();
+    
+    // ВАЖНО: Обновляем баланс платформы при открытии
+    loadBalance();
+    
     updateUI();
     if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
   }
@@ -220,9 +226,16 @@
 
   // ====== UPDATE BALANCE ======
   function updateBalance(balance) {
-    platformBalance = balance;
-    if (tonAmount) tonAmount.textContent = balance.toFixed(2);
-    console.log('[TON] 💰 Balance:', balance);
+    platformBalance = parseFloat(balance) || 0;
+    if (tonAmount) {
+      tonAmount.textContent = platformBalance.toFixed(2);
+    }
+    console.log('[TON] 💰 Balance updated:', platformBalance.toFixed(2));
+    
+    // Уведомляем систему валют об обновлении
+    window.dispatchEvent(new CustomEvent('balance:update', {
+      detail: { ton: platformBalance }
+    }));
   }
 
   // ====== CONNECT ======
@@ -277,7 +290,8 @@
 
       // Notify server
       try {
-        await fetch('/api/deposit-notification', {
+        console.log('[TON] 📤 Notifying server about deposit...');
+        const notifyRes = await fetch('/api/deposit-notification', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -285,7 +299,16 @@
             txHash: result?.boc, timestamp: Date.now()
           })
         });
-      } catch {}
+        
+        if (notifyRes.ok) {
+          const notifyData = await notifyRes.json();
+          console.log('[TON] ✅ Server notification successful:', notifyData);
+        } else {
+          console.error('[TON] ⚠️ Server notification failed:', notifyRes.status);
+        }
+      } catch (err) {
+        console.error('[TON] ❌ Server notification error:', err);
+      }
 
       if (tg?.showPopup) {
         tg.showPopup({
@@ -297,7 +320,13 @@
 
       if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
 
-      updateBalance(platformBalance + amount);
+      // Обновляем локальный баланс
+      const newBalance = platformBalance + amount;
+      updateBalance(newBalance);
+      
+      // Загружаем актуальный баланс с сервера
+      console.log('[TON] 🔄 Reloading balance from server...');
+      await loadBalance();
 
       setTimeout(() => {
         closePopup();
@@ -321,22 +350,38 @@
   // ====== LOAD BALANCE ======
   async function loadBalance() {
     try {
+      console.log('[TON] 🔄 Loading balance for user:', tgUserId);
       const res = await fetch(`/api/balance?userId=${tgUserId}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.ton !== undefined) updateBalance(data.ton);
+        console.log('[TON] 📊 Balance received:', data);
+        if (data.ton !== undefined) {
+          updateBalance(data.ton);
+          // Уведомляем систему о загрузке баланса
+          window.dispatchEvent(new CustomEvent('balance:loaded', {
+            detail: { ton: data.ton, stars: data.stars }
+          }));
+        }
+      } else {
+        console.error('[TON] ❌ Balance load failed:', res.status);
       }
-    } catch {}
+    } catch (err) {
+      console.error('[TON] ❌ Balance load error:', err);
+    }
   }
 
   // ====== EVENTS ======
   window.addEventListener('balance:update', (e) => {
+    console.log('[TON] 🔔 Balance update event:', e.detail);
     if (e.detail?.ton !== undefined) updateBalance(e.detail.ton);
   });
 
   // ====== INIT ======
   updateUI();
+  
+  // ВАЖНО: Загружаем баланс сразу при старте
   loadBalance();
+  
   console.log('[TON] ✅ Ready');
 
   // ====== EXPORT ======
@@ -344,6 +389,8 @@
     open: openPopup,
     close: closePopup,
     updateBalance,
-    isConnected: () => !!tc?.account
+    isConnected: () => !!tc?.account,
+    reloadBalance: loadBalance, // Добавляем метод для перезагрузки
+    getBalance: () => platformBalance // Добавляем геттер баланса
   };
 })();

@@ -1,6 +1,6 @@
 /**
  * switch.js - Currency Switch System (TON / Telegram Stars)
- * ИСПРАВЛЕННАЯ ВЕРСИЯ - гарантированное переключение иконок
+ * ФИНАЛЬНАЯ ВЕРСИЯ - с загрузкой баланса с сервера
  */
 
 (function() {
@@ -27,11 +27,13 @@
       document.addEventListener('DOMContentLoaded', () => {
         initUI();
         attachEventListeners();
+        loadBalanceFromServer(); // 🔥 НОВОЕ: Загружаем баланс сразу
         updateBalanceDisplay();
       });
     } else {
       initUI();
       attachEventListeners();
+      loadBalanceFromServer(); // 🔥 НОВОЕ: Загружаем баланс сразу
       updateBalanceDisplay();
     }
     
@@ -87,6 +89,14 @@
 
     // Слушаем события баланса от других модулей
     window.addEventListener('balance:update', (e) => {
+      if (e.detail) {
+        updateBalance(e.detail);
+      }
+    });
+    
+    // 🔥 НОВОЕ: Слушаем событие загрузки баланса
+    window.addEventListener('balance:loaded', (e) => {
+      console.log('[Switch] 📥 Balance loaded event:', e.detail);
       if (e.detail) {
         updateBalance(e.detail);
       }
@@ -317,6 +327,40 @@
     }
   }
 
+  // 🔥 НОВОЕ: ЗАГРУЗКА БАЛАНСА С СЕРВЕРА ==================
+  async function loadBalanceFromServer() {
+    const userId = tg?.initDataUnsafe?.user?.id;
+    if (!userId) {
+      console.warn('[Switch] ⚠️ No user ID, skipping balance load');
+      return;
+    }
+
+    try {
+      console.log('[Switch] 🔄 Loading balance from server for user:', userId);
+      const res = await fetch(`/api/balance?userId=${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        console.log('[Switch] 📊 Balance received:', data);
+        
+        if (data.ton !== undefined || data.stars !== undefined) {
+          updateBalance({
+            ton: data.ton || 0,
+            stars: data.stars || 0
+          });
+          
+          // Уведомляем модули о загрузке
+          window.dispatchEvent(new CustomEvent('balance:loaded', {
+            detail: { ton: data.ton || 0, stars: data.stars || 0 }
+          }));
+        }
+      } else {
+        console.error('[Switch] ❌ Balance load failed:', res.status);
+      }
+    } catch (err) {
+      console.error('[Switch] ❌ Balance load error:', err);
+    }
+  }
+
   // ================== PUBLIC API ==================
   window.WildTimeCurrency = {
     get current() { return currentCurrency; },
@@ -330,6 +374,12 @@
     formatStars: formatStars,
     openPopup: openDepositPopup,
     closeAllPopups: closeAllPopups,
+    
+    // 🔥 НОВОЕ: Метод для принудительной загрузки
+    reloadBalance: () => {
+      console.log('[Switch] 🔄 Manual balance reload requested');
+      return loadBalanceFromServer();
+    },
     
     // Debug helpers
     debug: {
@@ -355,7 +405,8 @@
         currency: currentCurrency,
         balance: userBalance,
         iconSrc: document.getElementById('pillCurrencyIcon')?.src
-      })
+      }),
+      reloadBalance: loadBalanceFromServer // 🔥 НОВОЕ
     }
   };
 
@@ -518,6 +569,12 @@
 
   // ================== AUTO-INIT ==================
   init();
+  
+  // 🔥 НОВОЕ: Автоматическая синхронизация каждые 30 секунд
+  setInterval(() => {
+    console.log('[Switch] 🔄 Auto-syncing balance...');
+    loadBalanceFromServer();
+  }, 30000);
 
   // ================== DEBUG CHECK ==================
   setTimeout(() => {
