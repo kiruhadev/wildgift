@@ -290,7 +290,7 @@ app.post("/api/stars/webhook", async (req, res) => {
 
 app.post("/api/deposit-notification", async (req, res) => {
   try {
-    const { amount, currency, userId, txHash, timestamp } = req.body;
+    const { amount, currency, userId, txHash, timestamp, initData } = req.body;
     
     console.log('[Deposit] Notification received:', {
       amount,
@@ -300,7 +300,79 @@ app.post("/api/deposit-notification", async (req, res) => {
       timestamp
     });
 
-    res.json({ ok: true, message: 'Notification received' });
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: 'User ID required' });
+    }
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ ok: false, error: 'Invalid amount' });
+    }
+
+    // Если есть initData, извлекаем данные пользователя
+    let user = null;
+    if (initData) {
+      const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
+      if (check.ok && check.params.user) {
+        try { 
+          user = JSON.parse(check.params.user); 
+          // Сохраняем пользователя в БД
+          db.saveUser(user);
+        } catch {}
+      }
+    }
+
+    // Начисляем баланс в зависимости от валюты
+    if (currency === 'ton') {
+      try {
+        const newBalance = db.updateBalance(
+          userId,
+          'ton',
+          parseFloat(amount),
+          'deposit',
+          txHash ? `TON deposit ${txHash.slice(0, 10)}...` : 'TON deposit',
+          { txHash }
+        );
+        
+        console.log('[Deposit] TON balance updated:', { userId, newBalance });
+        
+        // Отправляем уведомление пользователю
+        if (process.env.BOT_TOKEN) {
+          await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: userId,
+              text: `✅ Deposit confirmed!\n\nYou received ${amount} TON`,
+              parse_mode: 'HTML'
+            })
+          }).catch(err => console.error('[Deposit] Error sending confirmation:', err));
+        }
+        
+      } catch (err) {
+        console.error('[Deposit] Error updating TON balance:', err);
+        return res.status(500).json({ ok: false, error: 'Failed to update balance' });
+      }
+      
+    } else if (currency === 'stars') {
+      try {
+        const newBalance = db.updateBalance(
+          userId,
+          'stars',
+          parseInt(amount),
+          'deposit',
+          'Stars payment',
+          { invoiceId: txHash }
+        );
+        
+        console.log('[Deposit] Stars balance updated:', { userId, newBalance });
+        
+      } catch (err) {
+        console.error('[Deposit] Error updating Stars balance:', err);
+        return res.status(500).json({ ok: false, error: 'Failed to update balance' });
+      }
+    }
+
+    res.json({ ok: true, message: 'Deposit processed successfully' });
   } catch (error) {
     console.error('[Deposit] Error:', error);
     res.status(500).json({ ok: false, error: error.message });
