@@ -1,4 +1,4 @@
-// server.js - ИСПРАВЛЕННАЯ ВЕРСИЯ
+// server.js - CLEAN VERSION
 import express from "express";
 import dotenv from "dotenv";
 import path from "path";
@@ -12,19 +12,19 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
-// Конфигурация колеса (должна совпадать с wheel.js)
+// Wheel configuration (must match wheel.js)
 const WHEEL_ORDER = [
   'Wild Time','1x','3x','Loot Rush','1x','7x','50&50','1x',
   '3x','11x','1x','3x','Loot Rush','1x','7x','50&50',
   '1x','3x','1x','11x','3x','1x','7x','50&50'
 ];
 
-// --- базовые настройки
+// --- Base settings
 app.set("trust proxy", true);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// --- статика из ./public
+// --- Static files from ./public
 app.use(express.static(path.join(__dirname, "public"), {
   extensions: ["html"],
   setHeaders: (res, filePath) => {
@@ -80,7 +80,7 @@ app.get("/api/tg/photo/:userId", async (req, res) => {
   }
 });
 
-// ====== DEPOSIT NOTIFICATION - ИСПРАВЛЕНО ======
+// ====== DEPOSIT NOTIFICATION ======
 app.post("/api/deposit-notification", async (req, res) => {
   try {
     const { amount, currency, userId, txHash, timestamp, initData } = req.body;
@@ -93,7 +93,7 @@ app.post("/api/deposit-notification", async (req, res) => {
       timestamp
     });
 
-    // Валидация
+    // Validation
     if (!userId) {
       return res.status(400).json({ ok: false, error: 'User ID required' });
     }
@@ -106,14 +106,13 @@ app.post("/api/deposit-notification", async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Invalid currency' });
     }
 
-    // Извлекаем данные пользователя из initData
+    // Extract user data from initData
     let user = null;
     if (initData) {
       const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
       if (check.ok && check.params.user) {
         try { 
           user = JSON.parse(check.params.user);
-          // Сохраняем пользователя в БД
           db.saveUser(user);
           console.log('[Deposit] User saved:', user.id);
         } catch (err) {
@@ -122,7 +121,7 @@ app.post("/api/deposit-notification", async (req, res) => {
       }
     }
 
-    // 🔥 КРИТИЧНО: Обрабатываем в зависимости от валюты
+    // Process deposit based on currency
     try {
       if (currency === 'ton') {
         const newBalance = db.updateBalance(
@@ -134,14 +133,13 @@ app.post("/api/deposit-notification", async (req, res) => {
           { txHash }
         );
         
-        console.log('[Deposit] ✅ TON balance updated:', { userId, newBalance });
+        console.log('[Deposit] TON balance updated:', { userId, newBalance });
         
-        // Отправляем уведомление
+        // Send notification
         if (process.env.BOT_TOKEN) {
           await sendTelegramMessage(userId, `✅ Deposit confirmed!\n\nYou received ${amount} TON`);
         }
         
-        // Возвращаем успех СРАЗУ
         return res.json({ 
           ok: true, 
           message: 'TON deposit processed',
@@ -158,9 +156,8 @@ app.post("/api/deposit-notification", async (req, res) => {
           { invoiceId: txHash }
         );
         
-        console.log('[Deposit] ✅ Stars balance updated:', { userId, newBalance });
+        console.log('[Deposit] Stars balance updated:', { userId, newBalance });
         
-        // Возвращаем успех СРАЗУ
         return res.json({ 
           ok: true, 
           message: 'Stars deposit processed',
@@ -169,7 +166,7 @@ app.post("/api/deposit-notification", async (req, res) => {
       }
       
     } catch (err) {
-      console.error('[Deposit] ❌ Error updating balance:', err);
+      console.error('[Deposit] Error updating balance:', err);
       return res.status(500).json({ 
         ok: false, 
         error: 'Failed to update balance',
@@ -178,7 +175,7 @@ app.post("/api/deposit-notification", async (req, res) => {
     }
 
   } catch (error) {
-    console.error('[Deposit] ❌ Error:', error);
+    console.error('[Deposit] Error:', error);
     res.status(500).json({ 
       ok: false, 
       error: error.message || 'Internal server error'
@@ -186,7 +183,7 @@ app.post("/api/deposit-notification", async (req, res) => {
   }
 });
 
-// ====== BALANCE API - ИСПРАВЛЕНО ======
+// ====== BALANCE API ======
 app.get("/api/balance", async (req, res) => {
   try {
     const { userId } = req.query;
@@ -200,10 +197,9 @@ app.get("/api/balance", async (req, res) => {
 
     console.log('[Balance] Request for user:', userId);
 
-    // Получаем баланс из БД
     const balance = db.getUserBalance(userId);
 
-    console.log('[Balance] ✅ Retrieved:', balance);
+    console.log('[Balance] Retrieved:', balance);
 
     res.json({
       ok: true,
@@ -214,7 +210,7 @@ app.get("/api/balance", async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Balance] ❌ Error:', error);
+    console.error('[Balance] Error:', error);
     res.status(500).json({
       ok: false,
       error: error.message || 'Failed to get balance'
@@ -311,7 +307,7 @@ app.post("/api/stars/webhook", async (req, res) => {
 
     console.log('[Stars Webhook] Received update:', JSON.stringify(update, null, 2));
 
-    // Обработка pre_checkout_query
+    // Handle pre_checkout_query
     if (update.pre_checkout_query) {
       const query = update.pre_checkout_query;
       const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -333,7 +329,7 @@ app.post("/api/stars/webhook", async (req, res) => {
       return res.json({ ok: true });
     }
 
-    // Обработка successful_payment
+    // Handle successful_payment
     if (update.message?.successful_payment) {
       const payment = update.message.successful_payment;
       const userId = update.message.from.id;
@@ -346,10 +342,8 @@ app.post("/api/stars/webhook", async (req, res) => {
         telegramPaymentChargeId: payment.telegram_payment_charge_id
       });
 
-      // Сохраняем пользователя в БД
       db.saveUser(userFrom);
 
-      // Начисляем Stars на баланс
       try {
         const newBalance = db.updateBalance(
           userId,
@@ -360,16 +354,15 @@ app.post("/api/stars/webhook", async (req, res) => {
           { invoiceId: payment.invoice_payload }
         );
 
-        console.log('[Stars Webhook] ✅ Balance updated:', { userId, newBalance });
+        console.log('[Stars Webhook] Balance updated:', { userId, newBalance });
         
-        // Отправляем подтверждение пользователю
         await sendTelegramMessage(
           userId, 
           `✅ Payment successful!\n\nYou received ${payment.total_amount} ⭐ Stars`
         );
         
       } catch (err) {
-        console.error('[Stars Webhook] ❌ Error updating balance:', err);
+        console.error('[Stars Webhook] Error updating balance:', err);
       }
 
       res.json({ ok: true });
@@ -378,7 +371,7 @@ app.post("/api/stars/webhook", async (req, res) => {
     }
 
   } catch (error) {
-    console.error('[Stars Webhook] ❌ Error processing webhook:', error);
+    console.error('[Stars Webhook] Error processing webhook:', error);
     res.status(500).json({ ok: false, error: error.message });
   }
 });
@@ -502,7 +495,7 @@ app.get("/api/user/transactions", async (req, res) => {
   }
 });
 
-// ====== WHEEL ROUND API - ИСПРАВЛЕНО ======
+// ====== WHEEL ROUND API ======
 app.get("/api/round/start", (req, res) => {
   try {
     const sliceIndex = Math.floor(Math.random() * WHEEL_ORDER.length);
@@ -526,12 +519,12 @@ app.get("/api/round/start", (req, res) => {
   }
 });
 
-// ====== Проверка ставок ======
+// ====== PLACE BET ======
 app.post("/api/round/place-bet", async (req, res) => {
   try {
     const { bets, currency, roundId, initData } = req.body || {};
     
-    // Проверяем авторизацию
+    // Check authorization
     const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
     if (!check.ok) {
       return res.status(401).json({ ok: false, error: "unauthorized" });
@@ -555,7 +548,7 @@ app.post("/api/round/place-bet", async (req, res) => {
       return res.status(400).json({ ok: false, error: "Invalid currency" });
     }
 
-    // Подсчитываем общую сумму ставки
+    // Calculate total bet amount
     const totalAmount = Object.values(bets).reduce((sum, amount) => sum + parseFloat(amount || 0), 0);
 
     if (totalAmount <= 0) {
@@ -564,10 +557,10 @@ app.post("/api/round/place-bet", async (req, res) => {
 
     console.log('[Bets] Received:', { userId, bets, currency, totalAmount, roundId });
 
-    // Сохраняем пользователя
+    // Save user
     db.saveUser(user);
 
-    // Проверяем баланс
+    // Check balance
     const balance = db.getUserBalance(userId);
     const currentBalance = currency === 'ton' ? balance.ton_balance : balance.stars_balance;
 
@@ -580,10 +573,10 @@ app.post("/api/round/place-bet", async (req, res) => {
       });
     }
 
-    // Создаем ставку в БД
+    // Create bet in DB
     const betId = db.createBet(userId, roundId || `round_${Date.now()}`, bets, totalAmount, currency);
 
-    // Получаем новый баланс
+    // Get new balance
     const newBalance = db.getUserBalance(userId);
 
     res.json({
@@ -626,7 +619,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ====== старт ======
+// ====== START ======
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`
@@ -654,7 +647,7 @@ function baseUrlFrom(req) {
   return `${proto}://${host}`;
 }
 
-// Верификация Telegram initData
+// Verify Telegram initData
 function verifyInitData(initDataStr, botToken, maxAgeSeconds = 300) {
   try {
     if (!initDataStr || !botToken) return { ok: false, params: {} };
@@ -663,7 +656,7 @@ function verifyInitData(initDataStr, botToken, maxAgeSeconds = 300) {
     const hash = params.get("hash");
     params.delete("hash");
 
-    // проверка актуальности
+    // Check validity
     const authDate = Number(params.get("auth_date"));
     if (!Number.isNaN(authDate)) {
       const age = Date.now() / 1000 - authDate;
@@ -685,7 +678,7 @@ function verifyInitData(initDataStr, botToken, maxAgeSeconds = 300) {
   }
 }
 
-// Отправка сообщения в Telegram
+// Send Telegram message
 async function sendTelegramMessage(chatId, text) {
   if (!process.env.BOT_TOKEN) return;
   
