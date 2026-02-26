@@ -1877,6 +1877,53 @@ app.get("/api/relayer/rpc-health", async (req, res) => {
   }
 });
 
+// Debug: summarize relayer-related env/config for Render setup (no secret values)
+app.get("/api/relayer/config-check", async (req, res) => {
+  try {
+    const rpcPort = Math.max(1, Math.min(65535, Number(process.env.RELAYER_RPC_PORT || 3300) || 3300));
+    const rpcUrl = String(process.env.RELAYER_RPC_URL || "").trim().replace(/\/+$/, "");
+    const relayerServer = String(process.env.RELAYER_SERVER || "").trim().replace(/\/+$/, "");
+
+    const hasRelayerSecret = !!String(process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "").trim();
+    const hasRelayerApiId = !!String(process.env.RELAYER_API_ID || process.env.TG_API_ID || "").trim();
+    const hasRelayerApiHash = !!String(process.env.RELAYER_API_HASH || process.env.TG_API_HASH || "").trim();
+    const hasRelayerSession = !!String(process.env.RELAYER_SESSION || "").trim();
+
+    const rpcCandidates = [];
+    if (rpcUrl) rpcCandidates.push(rpcUrl);
+    rpcCandidates.push(`http://127.0.0.1:${rpcPort}`, `http://localhost:${rpcPort}`);
+
+    const warnings = [];
+    if (!hasRelayerSecret) warnings.push("Missing RELAYER_SECRET (or MARKET_SECRET)");
+    if (!rpcUrl) warnings.push("RELAYER_RPC_URL is not set (ok only when relayer RPC runs in same container on RELAYER_RPC_PORT)");
+    if (!hasRelayerApiId) warnings.push("Missing RELAYER_API_ID (required for relayer.js)");
+    if (!hasRelayerApiHash) warnings.push("Missing RELAYER_API_HASH (required for relayer.js)");
+    if (!hasRelayerSession) warnings.push("Missing RELAYER_SESSION (required for relayer.js run mode)");
+
+    return res.json({
+      ok: warnings.length === 0,
+      summary: {
+        hasRelayerSecret,
+        hasRelayerApiId,
+        hasRelayerApiHash,
+        hasRelayerSession,
+        rpcPort,
+        relayerRpcUrlConfigured: !!rpcUrl,
+        relayerServerConfigured: !!relayerServer,
+      },
+      rpcCandidates,
+      warnings,
+      tips: [
+        "If relayer is deployed as a separate Render service, set RELAYER_RPC_URL to its internal/public URL.",
+        "If relayer runs in the same container, ensure process 'node relayer.js run' is actually running and RELAYER_RPC_PORT is open locally.",
+        "RELAYER_SERVER is used by relayer.js to call backend API; it is NOT the backend variable for withdraw RPC target."
+      ]
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e?.message || "config check error" });
+  }
+});
+
 // Admin: add gifts to inventory (optional). If ADMIN_KEY is set, require header x-admin-key.
 app.post("/api/admin/inventory/add", async (req, res) => {
   try {
