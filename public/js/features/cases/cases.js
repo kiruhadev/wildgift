@@ -344,50 +344,35 @@ function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function pickWeightedNft(nfts) {
-  if (!Array.isArray(nfts) || !nfts.length) return null;
+function pickWeightedBy(items, weightKey) {
+  if (!Array.isArray(items) || !items.length) return null;
 
   let totalWeight = 0;
-  for (const nft of nfts) {
-    const w = Number(nft?.nftChance);
+  for (const item of items) {
+    const w = Number(item?.[weightKey]);
     if (Number.isFinite(w) && w > 0) totalWeight += w;
   }
 
   // Фолбэк на равномерный выбор, если веса не заданы
-  if (!(totalWeight > 0)) return pickRandom(nfts);
+  if (!(totalWeight > 0)) return pickRandom(items);
 
   let roll = Math.random() * totalWeight;
-  for (const nft of nfts) {
-    const w = Number(nft?.nftChance);
+  for (const item of items) {
+    const w = Number(item?.[weightKey]);
     const weight = (Number.isFinite(w) && w > 0) ? w : 0;
     roll -= weight;
-    if (roll <= 0) return nft;
+    if (roll <= 0) return item;
   }
 
-  return nfts[nfts.length - 1] || null;
+  return items[items.length - 1] || null;
+}
+
+function pickWeightedNft(nfts) {
+  return pickWeightedBy(nfts, 'nftChance');
 }
 
 function pickWeightedGift(gifts) {
-  if (!Array.isArray(gifts) || !gifts.length) return null;
-
-  let totalWeight = 0;
-  for (const gift of gifts) {
-    const w = Number(gift?.giftChance);
-    if (Number.isFinite(w) && w > 0) totalWeight += w;
-  }
-
-  // Фолбэк на равномерный выбор, если веса не заданы
-  if (!(totalWeight > 0)) return pickRandom(gifts);
-
-  let roll = Math.random() * totalWeight;
-  for (const gift of gifts) {
-    const w = Number(gift?.giftChance);
-    const weight = (Number.isFinite(w) && w > 0) ? w : 0;
-    roll -= weight;
-    if (roll <= 0) return gift;
-  }
-
-  return gifts[gifts.length - 1] || null;
+  return pickWeightedBy(gifts, 'giftChance');
 }
 
 function getNftWinChance(demoMode, currency) {
