@@ -313,9 +313,9 @@ function getFloorTonForItem(item) {
 // Demo: NFT выпадает часто (почти каждый прокрут)
 // Paid (TON / Stars): NFT выпадает редко
 const NFT_DROP_RATES = {
-  demo: 0.40,          // 90% на выигрыш в демо
-  ton: 0.13,           // 3% на выигрыш за TON
-  stars: 0.12          // 2% на выигрыш за Stars
+  demo: 0.40,          // 40% на NFT в демо
+  ton: 0.13,           // 13% на NFT за TON
+  stars: 0.12          // 12% на NFT за Stars
 };
 
 // Для заполнения ленты (визуально): чтобы NFT не мелькали слишком часто
@@ -408,10 +408,7 @@ function pickStripItem(caseData, demoMode) {
   return pickWeightedGift(pools.gifts) || pickRandom(pools.items);
 }
 
-
-
-
-  function getLineXInItems(carousel) {
+function getLineXInItems(carousel) {
   const cont = carousel.itemsContainer;
   const indicator = carousel.element?.querySelector?.('.case-carousel-indicator');
   if (!cont || !indicator) return 0;
@@ -439,21 +436,16 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX, itemWidth) 
   return idx;
 }
 
+// ====== HELPERS ======
+const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
-  // ====== HELPERS ======
-  const delay = (ms) => new Promise(res => setTimeout(res, ms));
-
-  function easeInOutCubic(t) {
+function easeInOutCubic(t) {
   // 0..1 -> 0..1 (плавный старт + плавная остановка)
   return t < 0.5
     ? 4 * t * t * t
     : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
-   
 
-
-   // ====== TON <-> STARS rate (0.4332 TON = 50 Stars) ======
-      // ====== TON <-> STARS rate (0.4332 TON = 50 ⭐) ======
 
 
 // =========================
