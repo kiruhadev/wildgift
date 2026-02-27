@@ -2316,10 +2316,17 @@ body:has(.page-active#casesPage)::before{
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   }
   
-  /* Скрываем topbar полностью (убираем блюр панель) */
+  /* Убираем блюр topbar, но оставляем видимой пилюлю баланса */
   body.case-sheet-open .topbar {
-    opacity: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
     pointer-events: none;
+  }
+
+  body.case-sheet-open .topbar .balance {
+    opacity: 1;
+    pointer-events: auto;
   }
   
   /* Скрываем остальные элементы topbar */

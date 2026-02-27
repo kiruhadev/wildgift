@@ -27,18 +27,18 @@
       price: { ton: 0.10, stars: 20 },
       items: [
 
-        { id: 'gift1', icon: 'gift1.png', price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
-        { id: 'gift2', icon: 'gift2.png', price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
-        { id: 'gift3', icon: 'gift3.png', price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
-        { id: 'gift4', icon: 'gift4.png', price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
-        { id: 'gift5', icon: 'gift5.png', price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
-        { id: 'gift6', icon: 'gift6.png', price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
-        { id: 'gift7', icon: 'gift7.png', price: { ton: 0.46, stars: 50 }, rarity: 'rare' },
-        { id: 'gift8', icon: 'gift8.png', price: { ton: 0.23, stars: 25 }, rarity: 'rare' },
-        { id: 'gift9', icon: 'gift9.png', price: { ton: 0.23, stars: 25 }, rarity: 'common' },
-        { id: 'gift10', icon: 'gift10.png', price: { ton: 0.14, stars: 15 }, rarity: 'common' },
-        { id: 'gift11', icon: 'gift11.png', price: { ton: 0.14, stars: 15 }, rarity: 'common' },
-        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+        { id: 'gift1', icon: 'gift1.png', giftChance: 0.05, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift2', icon: 'gift2.png', giftChance: 0.06, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift3', icon: 'gift3.png', giftChance: 0.07, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift4', icon: 'gift4.png', giftChance: 0.08, price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
+        { id: 'gift5', icon: 'gift5.png', giftChance: 0.09, price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
+        { id: 'gift6', icon: 'gift6.png', giftChance: 0.10, price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
+        { id: 'gift7', icon: 'gift7.png', giftChance: 0.11, price: { ton: 0.46, stars: 50 }, rarity: 'rare' },
+        { id: 'gift8', icon: 'gift8.png', giftChance: 0.12, price: { ton: 0.23, stars: 25 }, rarity: 'rare' },
+        { id: 'gift9', icon: 'gift9.png', giftChance: 0.12, price: { ton: 0.23, stars: 25 }, rarity: 'common' },
+        { id: 'gift10', icon: 'gift10.png', giftChance: 0.09, price: { ton: 0.14, stars: 15 }, rarity: 'common' },
+        { id: 'gift11', icon: 'gift11.png', giftChance: 0.06, price: { ton: 0.14, stars: 15 }, rarity: 'common' },
+        { id: 'gift12', icon: 'stars.webp', giftChance: 0.05, price: { ton: 0.015, stars: 5 }, rarity: 'common' },
       ]
 
 
@@ -51,16 +51,16 @@
       price: { ton: 0.15, stars: 30 },
       items: [
         // NFTs (put images into /public/images/nfts/)
-        { id: 'nft1', type: 'nft', icon: 'RaketaNFT.png',   price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
-        { id: 'nft2', type: 'nft', icon: 'IceCreamNFT.png', price: { ton: 2.83, stars: 359 }, rarity: 'epic' },
-        { id: 'nft3', type: 'nft', icon: 'RamenNFT.png',    price: { ton: 2.7, stars: 235  }, rarity: 'rare' },
+        { id: 'Stellar Rocket', type: 'nft', icon: 'RaketaNFT.png',   nftChance: 0.22, price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
+        { id: 'Ice Cream', type: 'nft', icon: 'IceCreamNFT.png', nftChance: 0.45, price: { ton: 2.83, stars: 359 }, rarity: 'epic' },
+        { id: 'Instant Ramen', type: 'nft', icon: 'RamenNFT.png', nftChance: 0.33, price: { ton: 2.7, stars: 235  }, rarity: 'rare' },
 
         // Gifts
-        { id: 'gift1',  icon: 'gift1.png',  price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
-        { id: 'gift4',  icon: 'gift4.png',  price: { ton: 0.46, stars: 50  }, rarity: 'epic' },
-        { id: 'gift7',  icon: 'gift7.png',  price: { ton: 0.46, stars: 50  }, rarity: 'rare' },
-        { id: 'gift9',  icon: 'gift9.png',  price: { ton: 0.23, stars: 25  }, rarity: 'common' },
-        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+        { id: 'gift1',  icon: 'gift1.png',  giftChance: 0.10, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift4',  icon: 'gift4.png',  giftChance: 0.18, price: { ton: 0.46, stars: 50  }, rarity: 'epic' },
+        { id: 'gift7',  icon: 'gift7.png',  giftChance: 0.24, price: { ton: 0.46, stars: 50  }, rarity: 'rare' },
+        { id: 'gift9',  icon: 'gift9.png',  giftChance: 0.26, price: { ton: 0.23, stars: 25  }, rarity: 'common' },
+        { id: 'gift12', icon: 'stars.webp', giftChance: 0.22, price: { ton: 0.015, stars: 5 }, rarity: 'common' },
       ]
     }
 
@@ -71,16 +71,16 @@
       price: { ton: 0.20, stars: 40 },
       items: [
         // Premium NFTs
-        { id: 'nft1', type: 'nft', icon: 'IceCreamNFtSkin.png',   price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
-        { id: 'nft2', type: 'nft', icon: 'CookieHeartNFTSkin.png', price: { ton: 2.83, stars: 359 }, rarity: 'legendary' },
-        { id: 'nft3', type: 'nft', icon: 'MousseCakeNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
-        { id: 'nft3', type: 'nft', icon: 'LolPopNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
-        { id: 'nft3', type: 'nft', icon: 'BerryBoxNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'Ice Cream', type: 'nft', icon: 'IceCreamNFtSkin.png', nftChance: 0.30, price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
+        { id: 'Cookie Heart', type: 'nft', icon: 'CookieHeartNFTSkin.png', nftChance: 0.20, price: { ton: 2.83, stars: 359 }, rarity: 'legendary' },
+        { id: 'Mousse Cake', type: 'nft', icon: 'MousseCakeNFTSkin.png', nftChance: 0.18, price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'Lol Pop', type: 'nft', icon: 'LolPopNFTSkin.png', nftChance: 0.16, price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'Berry Box', type: 'nft', icon: 'BerryBoxNFTSkin.png', nftChance: 0.16, price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
 
         // High-value Gifts       
-        { id: 'gift7',  icon: 'gift7.png',  price: { ton: 0.46, stars: 50  }, rarity: 'rare' },   
-        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
-        { id: 'gift13', icon: 'stars.webp', price: { ton: 0.01, stars: 3 }, rarity: 'common' },
+        { id: 'gift7',  icon: 'gift7.png',  giftChance: 0.30, price: { ton: 0.46, stars: 50  }, rarity: 'rare' },   
+        { id: 'gift12', icon: 'stars.webp', giftChance: 0.40, price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+        { id: 'gift13', icon: 'stars.webp', giftChance: 0.30, price: { ton: 0.01, stars: 3 }, rarity: 'common' },
       ]
       
     }
@@ -91,16 +91,16 @@
       price: { ton: 0.25, stars: 50 },
       items: [
         // Premium NFTs
-        { id: 'Electric Skull', type: 'nft', icon: 'ElectricSkullNFTSkin.png',   price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
-        { id: 'Vintage Cigar', type: 'nft', icon: 'VintageCigarNFTSkin.png', price: { ton: 2.83, stars: 359 }, rarity: 'legendary' },
-        { id: 'Voodoo Doll', type: 'nft', icon: 'VoodooDollNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
-        { id: 'Flying Broom', type: 'nft', icon: 'FlyingBroomNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
-        { id: 'Hex Pot', type: 'nft', icon: 'HexPotNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'Electric Skull', type: 'nft', icon: 'ElectricSkullNFTSkin.png', nftChance: 0.22, price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
+        { id: 'Vintage Cigar', type: 'nft', icon: 'VintageCigarNFTSkin.png', nftChance: 0.20, price: { ton: 2.83, stars: 359 }, rarity: 'legendary' },
+        { id: 'Voodoo Doll', type: 'nft', icon: 'VoodooDollNFTSkin.png', nftChance: 0.20, price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'Flying Broom', type: 'nft', icon: 'FlyingBroomNFTSkin.png', nftChance: 0.19, price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'Hex Pot', type: 'nft', icon: 'HexPotNFTSkin.png', nftChance: 0.19, price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
 
         // High-value Gifts       
-        { id: '', icon: 'stars.webp', price: { ton: 0.030, stars: 10 }, rarity: 'common' },
-        { id: '', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
-        { id: '', icon: 'stars.webp', price: { ton: 0.01, stars: 3 }, rarity: 'common' },
+        { id: 'stars10', icon: 'stars.webp', giftChance: 0.34, price: { ton: 0.030, stars: 10 }, rarity: 'common' },
+        { id: 'stars5', icon: 'stars.webp', giftChance: 0.40, price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+        { id: 'stars3', icon: 'stars.webp', giftChance: 0.26, price: { ton: 0.01, stars: 3 }, rarity: 'common' },
         
       ]
       
@@ -114,16 +114,16 @@
       items: [
         // Premium NFTs
    
-        { id: 'Mighty Arm', type: 'nft', icon: 'MightyArmNFTSkin.png',   price: { ton: 2.5, stars: 250 }, rarity: 'legendary' },
-        { id: 'Scared Cat', type: 'nft', icon: 'ScaredCatNFTSkin.png', price: { ton: 2.8, stars: 280 }, rarity: 'legendary' },
-        { id: 'Bonded Ring', type: 'nft', icon: 'BondedRingNFTSkin.png',    price: { ton: 3.0, stars: 300  }, rarity: 'legendary' },
-        { id: 'Genie Lamp', type: 'nft', icon: 'GenieLampNFTSkin.png',    price: { ton: 2.7, stars: 270  }, rarity: 'legendary' },
-        { id: 'Jack-In-The-Box', type: 'nft', icon: 'JackInTheBoxNFTSkin.png',    price: { ton: 2.6, stars: 260  }, rarity: 'legendary' },
-        { id: 'Winter Wreath', type: 'nft', icon: 'WinterWreathNFTSkin.png',    price: { ton: 2.9, stars: 290  }, rarity: 'legendary' },
+        { id: 'Mighty Arm', type: 'nft', icon: 'MightyArmNFTSkin.png', nftChance: 0.16, price: { ton: 2.5, stars: 250 }, rarity: 'legendary' },
+        { id: 'Scared Cat', type: 'nft', icon: 'ScaredCatNFTSkin.png', nftChance: 0.17, price: { ton: 2.8, stars: 280 }, rarity: 'legendary' },
+        { id: 'Bonded Ring', type: 'nft', icon: 'BondedRingNFTSkin.png', nftChance: 0.18, price: { ton: 3.0, stars: 300  }, rarity: 'legendary' },
+        { id: 'Genie Lamp', type: 'nft', icon: 'GenieLampNFTSkin.png', nftChance: 0.16, price: { ton: 2.7, stars: 270  }, rarity: 'legendary' },
+        { id: 'Jack-In-The-Box', type: 'nft', icon: 'JackInTheBoxNFTSkin.png', nftChance: 0.15, price: { ton: 2.6, stars: 260  }, rarity: 'legendary' },
+        { id: 'Winter Wreath', type: 'nft', icon: 'WinterWreathNFTSkin.png', nftChance: 0.18, price: { ton: 2.9, stars: 290  }, rarity: 'legendary' },
                 // High-value Gifts       
-        { id: '', icon: 'stars.webp', price: { ton: 0.065, stars: 25 }, rarity: 'common' },
-        { id: '', icon: 'stars.webp', price: { ton: 0.030, stars: 10 }, rarity: 'common' },
-        { id: '', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+        { id: 'stars25', icon: 'stars.webp', giftChance: 0.24, price: { ton: 0.065, stars: 25 }, rarity: 'common' },
+        { id: 'stars10', icon: 'stars.webp', giftChance: 0.32, price: { ton: 0.030, stars: 10 }, rarity: 'common' },
+        { id: 'stars5', icon: 'stars.webp', giftChance: 0.44, price: { ton: 0.015, stars: 5 }, rarity: 'common' },
         
       ]
       
@@ -344,6 +344,52 @@ function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function pickWeightedNft(nfts) {
+  if (!Array.isArray(nfts) || !nfts.length) return null;
+
+  let totalWeight = 0;
+  for (const nft of nfts) {
+    const w = Number(nft?.nftChance);
+    if (Number.isFinite(w) && w > 0) totalWeight += w;
+  }
+
+  // Фолбэк на равномерный выбор, если веса не заданы
+  if (!(totalWeight > 0)) return pickRandom(nfts);
+
+  let roll = Math.random() * totalWeight;
+  for (const nft of nfts) {
+    const w = Number(nft?.nftChance);
+    const weight = (Number.isFinite(w) && w > 0) ? w : 0;
+    roll -= weight;
+    if (roll <= 0) return nft;
+  }
+
+  return nfts[nfts.length - 1] || null;
+}
+
+function pickWeightedGift(gifts) {
+  if (!Array.isArray(gifts) || !gifts.length) return null;
+
+  let totalWeight = 0;
+  for (const gift of gifts) {
+    const w = Number(gift?.giftChance);
+    if (Number.isFinite(w) && w > 0) totalWeight += w;
+  }
+
+  // Фолбэк на равномерный выбор, если веса не заданы
+  if (!(totalWeight > 0)) return pickRandom(gifts);
+
+  let roll = Math.random() * totalWeight;
+  for (const gift of gifts) {
+    const w = Number(gift?.giftChance);
+    const weight = (Number.isFinite(w) && w > 0) ? w : 0;
+    roll -= weight;
+    if (roll <= 0) return gift;
+  }
+
+  return gifts[gifts.length - 1] || null;
+}
+
 function getNftWinChance(demoMode, currency) {
   if (demoMode) return NFT_DROP_RATES.demo;
   return (currency === 'ton') ? NFT_DROP_RATES.ton : NFT_DROP_RATES.stars;
@@ -354,27 +400,27 @@ function pickWinningItem(caseData, demoMode, currency) {
   if (!pools.items.length) return null;
 
   // Если NFT в кейсе нет — выбираем как обычно
-  if (!pools.nfts.length) return pickRandom(pools.items);
+  if (!pools.nfts.length) return pickWeightedGift(pools.gifts) || pickRandom(pools.items);
 
   const chance = getNftWinChance(demoMode, currency);
   const roll = Math.random();
 
   if (roll < chance) {
-    return pickRandom(pools.nfts) || pickRandom(pools.items);
+    return pickWeightedNft(pools.nfts) || pickRandom(pools.items);
   }
   // не NFT: выбираем из подарков
-  return pickRandom(pools.gifts) || pickRandom(pools.items);
+  return pickWeightedGift(pools.gifts) || pickRandom(pools.items);
 }
 
 function pickStripItem(caseData, demoMode) {
   const pools = getCasePools(caseData);
   if (!pools.items.length) return null;
 
-  if (!pools.nfts.length) return pickRandom(pools.items);
+  if (!pools.nfts.length) return pickWeightedGift(pools.gifts) || pickRandom(pools.items);
 
   const chance = demoMode ? STRIP_NFT_CHANCE.demo : STRIP_NFT_CHANCE.paid;
-  if (Math.random() < chance) return pickRandom(pools.nfts) || pickRandom(pools.items);
-  return pickRandom(pools.gifts) || pickRandom(pools.items);
+  if (Math.random() < chance) return pickWeightedNft(pools.nfts) || pickRandom(pools.items);
+  return pickWeightedGift(pools.gifts) || pickRandom(pools.items);
 }
 
 
